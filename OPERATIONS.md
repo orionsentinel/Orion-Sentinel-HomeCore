@@ -290,37 +290,93 @@ sudo rm /srv/orion/homecore/zigbee2mqtt/data/database.db
 docker compose up -d zigbee2mqtt
 ```
 
-## Systemd Service
+## Systemd Service Management
 
-### Enable Auto-Start
+The systemd service provides automatic startup on boot and system-level service management.
+
+### Install systemd Service
+
+Use the provided script to install and enable the service:
 
 ```bash
-# Copy service file
-sudo cp systemd/homecore.service /etc/systemd/system/
-
-# Edit paths if needed
-sudo nano /etc/systemd/system/homecore.service
-
-# Enable and start
-sudo systemctl daemon-reload
-sudo systemctl enable homecore
+./scripts/install-systemd.sh
 ```
+
+This automatically configures the service to start the "core" bundle (Home Assistant) on boot.
 
 ### Manage with systemd
 
 ```bash
-# Start
+# Check service status
+sudo systemctl status homecore --no-pager
+
+# Start the service
 sudo systemctl start homecore
 
-# Stop
+# Stop the service
 sudo systemctl stop homecore
 
-# Status
-sudo systemctl status homecore
+# Restart the service
+sudo systemctl restart homecore
 
-# View logs
+# View logs (follow mode)
 sudo journalctl -u homecore -f
+
+# View recent logs
+sudo journalctl -u homecore -e --no-pager
 ```
+
+### Change Boot Bundle
+
+By default, the systemd service starts the "core" bundle (Home Assistant only) on boot.
+
+To change which bundle starts automatically:
+
+1. **Edit the systemd unit file**:
+
+```bash
+sudo nano /etc/systemd/system/homecore.service
+```
+
+2. **Modify the ExecStart and ExecStop lines**:
+
+For example, to start the full home automation stack on boot:
+
+```ini
+ExecStart=/bin/bash -c '/path/to/repo/scripts/orionctl up homeauto'
+ExecStop=/bin/bash -c '/path/to/repo/scripts/orionctl down homeauto'
+ExecReload=/bin/bash -c '/path/to/repo/scripts/orionctl restart homeauto'
+```
+
+Available bundles:
+- `core` - Home Assistant only (default)
+- `homeauto` - Home Assistant + MQTT + Zigbee + Node-RED
+- `apps` - Mealie recipe manager
+- `all` - All services
+
+3. **Reload systemd and restart the service**:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart homecore
+```
+
+4. **Verify the changes**:
+
+```bash
+sudo systemctl status homecore --no-pager
+./scripts/orionctl ps
+```
+
+### Uninstall systemd Service
+
+To remove the systemd service:
+
+```bash
+./scripts/uninstall-systemd.sh
+```
+
+This will stop, disable, and remove the service. HomeCore will need to be started manually after this.
 
 ## Performance Tuning
 

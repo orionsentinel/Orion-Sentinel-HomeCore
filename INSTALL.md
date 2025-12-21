@@ -260,29 +260,66 @@ See [SECURITY.md](SECURITY.md) for network exposure policies and best practices.
 3. Put your Zigbee device in pairing mode
 4. Device should appear in the interface
 
-## Optional: Enable Auto-Start on Boot
+## Run at Boot with systemd (Recommended)
 
-### Using systemd
+The easiest way to enable automatic startup on system boot is to use the provided installation script.
+
+### Install systemd Service
 
 ```bash
-# Copy service file
-sudo cp systemd/homecore.service /etc/systemd/system/
-
-# Edit to match your installation path
-sudo nano /etc/systemd/system/homecore.service
+./scripts/install-systemd.sh
 ```
 
-Update `WorkingDirectory` if you didn't install to `/opt/orion/homecore`.
+This script will:
+- Validate that Docker and Docker Compose are installed
+- Check that `.env` file exists
+- Install the systemd unit file to `/etc/systemd/system/homecore.service`
+- Enable and start the service automatically
+
+### Check Service Status
 
 ```bash
-# Enable and start
-sudo systemctl daemon-reload
-sudo systemctl enable homecore
+sudo systemctl status homecore --no-pager
+```
+
+### View Service Logs
+
+```bash
+# Follow logs in real-time
+sudo journalctl -u homecore -f
+
+# View recent logs
+sudo journalctl -u homecore -e --no-pager
+
+# View logs since last boot
+sudo journalctl -u homecore -b
+```
+
+### Manage the Service
+
+```bash
+# Restart the service
+sudo systemctl restart homecore
+
+# Stop the service
+sudo systemctl stop homecore
+
+# Start the service
 sudo systemctl start homecore
 
-# Check status
-sudo systemctl status homecore
+# Disable auto-start on boot (service remains installed)
+sudo systemctl disable homecore
 ```
+
+### Uninstall systemd Service
+
+To remove the systemd service completely:
+
+```bash
+./scripts/uninstall-systemd.sh
+```
+
+**Note**: By default, the systemd service starts the "core" bundle (Home Assistant only). To change which services start on boot, see the [OPERATIONS.md](OPERATIONS.md) guide.
 
 ## Verify Installation
 

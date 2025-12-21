@@ -5,7 +5,7 @@
 # A simple operator CLI for managing HomeCore services.
 # =============================================================================
 
-set -e
+set -euo pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -22,12 +22,23 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 # Change to repo root
 cd "$REPO_ROOT"
 
-# Load environment if exists
+# Load environment (required)
 if [ -f ".env" ]; then
     # shellcheck source=/dev/null
     set -a
     source ".env"
     set +a
+else
+    echo -e "${RED}[ERROR]${NC} .env file not found in ${REPO_ROOT}"
+    echo ""
+    echo "Please create .env file first:"
+    echo "  cp env/.env.example .env"
+    echo "  nano .env"
+    echo ""
+    echo "Or run the bootstrap script:"
+    echo "  ./scripts/bootstrap-homecore.sh"
+    echo ""
+    exit 1
 fi
 
 # -----------------------------------------------------------------------------
@@ -245,19 +256,18 @@ cmd_restart() {
 cmd_update() {
     log_info "Pulling latest images..."
     
-    # Get list of running services
-    running_services=$(docker compose ps --format "{{.Name}}" 2>/dev/null || echo "")
-    
     # Pull all images
     docker compose pull
     
-    if [ -n "$running_services" ]; then
-        log_info "Restarting services with new images..."
-        docker compose up -d
-        log_success "Services updated and restarted!"
-    else
-        log_success "Images pulled. Start services with: orionctl up"
-    fi
+    log_info "Recreating services with new images..."
+    # Note: This recreates services that are already running with new images.
+    # Docker Compose remembers which services were started and recreates only those.
+    # For profile-specific updates, use: orionctl down <bundle> && orionctl up <bundle>
+    docker compose up -d
+    
+    log_success "Services updated and restarted!"
+    echo ""
+    cmd_ps
 }
 
 cmd_doctor() {
