@@ -88,36 +88,38 @@ show_help() {
     echo ""
 }
 
-# Map bundle names to profiles
+# Map bundle names to profile arrays
+# Sets the global PROFILE_ARGS array
 get_profiles_for_bundle() {
     local bundle="$1"
+    PROFILE_ARGS=()
     case "$bundle" in
         core|homeassistant)
-            echo ""
+            # No additional profiles needed
             ;;
         mqtt)
-            echo "--profile mqtt"
+            PROFILE_ARGS=(--profile mqtt)
             ;;
         zigbee)
-            echo "--profile mqtt --profile zigbee"
+            PROFILE_ARGS=(--profile mqtt --profile zigbee)
             ;;
         nodered)
-            echo "--profile nodered"
+            PROFILE_ARGS=(--profile nodered)
             ;;
         esphome)
-            echo "--profile esphome"
+            PROFILE_ARGS=(--profile esphome)
             ;;
         mealie|apps)
-            echo "--profile mealie"
+            PROFILE_ARGS=(--profile mealie)
             ;;
         homeauto)
-            echo "--profile mqtt --profile zigbee --profile nodered"
+            PROFILE_ARGS=(--profile mqtt --profile zigbee --profile nodered)
             ;;
         all)
-            echo "--profile mqtt --profile zigbee --profile nodered --profile esphome --profile mealie"
+            PROFILE_ARGS=(--profile mqtt --profile zigbee --profile nodered --profile esphome --profile mealie)
             ;;
         *)
-            echo ""
+            # Unknown bundle, no profiles
             ;;
     esac
 }
@@ -127,14 +129,19 @@ get_profiles_for_bundle() {
 # -----------------------------------------------------------------------------
 
 cmd_up() {
-    local profiles=""
+    local -a profile_args=()
     local stack=""
     
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --profile)
-                profiles="$profiles --profile $2"
+                if [[ -n "$2" && "$2" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+                    profile_args+=(--profile "$2")
+                else
+                    log_error "Invalid profile name: $2"
+                    exit 1
+                fi
                 shift 2
                 ;;
             -*)
@@ -150,10 +157,8 @@ cmd_up() {
     
     # If a stack/bundle name is provided, convert to profiles
     if [ -n "$stack" ]; then
-        bundle_profiles=$(get_profiles_for_bundle "$stack")
-        if [ -n "$bundle_profiles" ]; then
-            profiles="$profiles $bundle_profiles"
-        fi
+        get_profiles_for_bundle "$stack"
+        profile_args+=("${PROFILE_ARGS[@]}")
     fi
     
     log_info "Starting HomeCore services..."
@@ -164,9 +169,8 @@ cmd_up() {
         docker network create homecore_internal
     fi
     
-    # Build the command
-    # shellcheck disable=SC2086
-    docker compose $profiles up -d
+    # Run docker compose with profile arguments
+    docker compose "${profile_args[@]}" up -d
     
     log_success "Services started!"
     echo ""
@@ -175,16 +179,16 @@ cmd_up() {
 
 cmd_down() {
     local stack="$1"
-    local profiles=""
+    local -a profile_args=()
     
     if [ -n "$stack" ]; then
-        profiles=$(get_profiles_for_bundle "$stack")
+        get_profiles_for_bundle "$stack"
+        profile_args=("${PROFILE_ARGS[@]}")
     fi
     
     log_info "Stopping HomeCore services..."
     
-    # shellcheck disable=SC2086
-    docker compose $profiles down
+    docker compose "${profile_args[@]}" down
     
     log_success "Services stopped!"
 }
@@ -210,16 +214,16 @@ cmd_logs() {
 
 cmd_restart() {
     local stack="$1"
-    local profiles=""
+    local -a profile_args=()
     
     if [ -n "$stack" ]; then
-        profiles=$(get_profiles_for_bundle "$stack")
+        get_profiles_for_bundle "$stack"
+        profile_args=("${PROFILE_ARGS[@]}")
     fi
     
     log_info "Restarting HomeCore services..."
     
-    # shellcheck disable=SC2086
-    docker compose $profiles restart
+    docker compose "${profile_args[@]}" restart
     
     log_success "Services restarted!"
 }

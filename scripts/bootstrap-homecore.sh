@@ -133,18 +133,32 @@ log_info "Checking secrets..."
 
 SECRETS_UPDATED=false
 
+# Safe secret replacement function using awk to avoid regex issues
+replace_secret() {
+    local key="$1"
+    local old_value="$2"
+    local new_value="$3"
+    local file="$4"
+    
+    # Use awk for safe string replacement (no regex interpretation)
+    awk -v key="$key" -v old="$old_value" -v new="$new_value" '
+        $0 == key "=" old { print key "=" new; next }
+        { print }
+    ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+}
+
 # Generate POSTGRES_PASSWORD if it's the default
-if grep -q "POSTGRES_PASSWORD=changeme" "$ENV_FILE" 2>/dev/null; then
+if grep -q "^POSTGRES_PASSWORD=changeme$" "$ENV_FILE" 2>/dev/null; then
     NEW_SECRET=$(generate_secret)
-    sed -i "s/POSTGRES_PASSWORD=changeme/POSTGRES_PASSWORD=${NEW_SECRET}/" "$ENV_FILE"
+    replace_secret "POSTGRES_PASSWORD" "changeme" "$NEW_SECRET" "$ENV_FILE"
     log_success "Generated POSTGRES_PASSWORD"
     SECRETS_UPDATED=true
 fi
 
 # Generate MEALIE_SECRET_KEY if it's the default
-if grep -q "MEALIE_SECRET_KEY=changeme" "$ENV_FILE" 2>/dev/null; then
+if grep -q "^MEALIE_SECRET_KEY=changeme$" "$ENV_FILE" 2>/dev/null; then
     NEW_SECRET=$(generate_secret)
-    sed -i "s/MEALIE_SECRET_KEY=changeme/MEALIE_SECRET_KEY=${NEW_SECRET}/" "$ENV_FILE"
+    replace_secret "MEALIE_SECRET_KEY" "changeme" "$NEW_SECRET" "$ENV_FILE"
     log_success "Generated MEALIE_SECRET_KEY"
     SECRETS_UPDATED=true
 fi

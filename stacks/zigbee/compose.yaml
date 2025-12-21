@@ -21,7 +21,8 @@ services:
       mosquitto:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/"]
+      # Using wget as zigbee2mqtt image is Alpine-based (wget available, curl not)
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/"]
       interval: 30s
       timeout: 10s
       retries: 3
