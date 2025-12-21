@@ -7,16 +7,19 @@ services:
     image: koenkk/zigbee2mqtt:latest
     container_name: zigbee2mqtt
     restart: unless-stopped
+    init: true
+    stop_grace_period: 10s
     environment:
       - TZ=${TZ:-Europe/Amsterdam}
     volumes:
       - ${DATA_ROOT}/zigbee2mqtt/data:/app/data
     ports:
-      - "${HOST_IP:-0.0.0.0}:${ZIGBEE_PORT:-8080}:8080"
+      - "${HOST_IP:-127.0.0.1}:${ZIGBEE_PORT:-8080}:8080"
     devices:
       - ${ZIGBEE_DEVICE:-/dev/ttyUSB0}:/dev/ttyUSB0
     networks:
       - homecore_internal
+      - homecore_lan
     depends_on:
       mosquitto:
         condition: service_healthy
@@ -32,5 +35,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          memory: "128M"
     profiles:
       - zigbee

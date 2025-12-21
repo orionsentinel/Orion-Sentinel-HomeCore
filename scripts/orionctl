@@ -59,10 +59,12 @@ show_help() {
     echo "  up [stack] [--profile <name>]  Start services (default: core)"
     echo "  down [stack]                   Stop services"
     echo "  ps                             Show running services"
-    echo "  logs <service>                 Show service logs"
+    echo "  logs <service> [--follow]      Show service logs"
     echo "  restart [stack]                Restart services"
     echo "  update                         Pull latest images and restart"
+    echo "  validate                       Validate compose configuration"
     echo "  doctor                         Run health checks"
+    echo "  backup                         Backup all data"
     echo "  help                           Show this help message"
     echo ""
     echo "Stacks:"
@@ -84,7 +86,9 @@ show_help() {
     echo "  orionctl up homeauto           # Start full home automation stack"
     echo "  orionctl up --profile mqtt     # Start Home Assistant + MQTT"
     echo "  orionctl logs homeassistant    # View Home Assistant logs"
+    echo "  orionctl validate              # Validate compose files"
     echo "  orionctl doctor                # Run health checks"
+    echo "  orionctl backup                # Backup all data"
     echo ""
 }
 
@@ -163,10 +167,15 @@ cmd_up() {
     
     log_info "Starting HomeCore services..."
     
-    # Ensure network exists
+    # Ensure networks exist
     if ! docker network inspect homecore_internal &> /dev/null; then
         log_info "Creating homecore_internal network..."
         docker network create homecore_internal
+    fi
+    
+    if ! docker network inspect homecore_lan &> /dev/null; then
+        log_info "Creating homecore_lan network..."
+        docker network create homecore_lan
     fi
     
     # Run docker compose with profile arguments
@@ -201,7 +210,12 @@ cmd_ps() {
 
 cmd_logs() {
     local service="$1"
-    local follow="${2:--f}"
+    local follow_flag=""
+    
+    # Check for --follow flag
+    if [ "$2" = "--follow" ] || [ "$2" = "-f" ]; then
+        follow_flag="-f"
+    fi
     
     if [ -z "$service" ]; then
         log_error "Please specify a service name"
@@ -209,7 +223,7 @@ cmd_logs() {
         exit 1
     fi
     
-    docker compose logs "$follow" "$service"
+    docker compose logs ${follow_flag} "$service"
 }
 
 cmd_restart() {
@@ -256,6 +270,64 @@ cmd_doctor() {
     "${SCRIPT_DIR}/doctor.sh"
 }
 
+cmd_validate() {
+    log_info "Validating Docker Compose configuration..."
+    
+    # Check if .env file exists
+    if [ ! -f "${REPO_ROOT}/.env" ]; then
+        log_error ".env file not found!"
+        echo ""
+        echo "Please create .env file first:"
+        echo "  cp env/.env.example .env"
+        echo "  sudo nano .env"
+        echo ""
+        echo "Or run the bootstrap script:"
+        echo "  ./scripts/bootstrap-homecore.sh"
+        echo ""
+        exit 1
+    fi
+    
+    # Check if DATA_ROOT is writable
+    DATA_ROOT="${DATA_ROOT:-/srv/orion/homecore}"
+    if [ ! -d "$DATA_ROOT" ]; then
+        log_error "DATA_ROOT does not exist: ${DATA_ROOT}"
+        echo ""
+        echo "Please run the bootstrap script first:"
+        echo "  ./scripts/bootstrap-homecore.sh"
+        echo ""
+        exit 1
+    fi
+    
+    if [ ! -w "$DATA_ROOT" ]; then
+        log_error "DATA_ROOT is not writable: ${DATA_ROOT}"
+        echo ""
+        echo "Please fix permissions:"
+        echo "  sudo chown -R \$USER:\$USER ${DATA_ROOT}"
+        echo ""
+        exit 1
+    fi
+    
+    # Validate compose configuration
+    log_info "Checking compose file syntax..."
+    
+    if docker compose config > /dev/null 2>&1; then
+        log_success "Compose configuration is valid!"
+        echo ""
+        echo "Configuration summary:"
+        docker compose config --services
+    else
+        log_error "Compose configuration has errors!"
+        echo ""
+        docker compose config
+        exit 1
+    fi
+}
+
+cmd_backup() {
+    log_info "Starting backup..."
+    "${SCRIPT_DIR}/backup.sh"
+}
+
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
@@ -283,8 +355,14 @@ case "${1:-help}" in
     update)
         cmd_update
         ;;
+    validate)
+        cmd_validate
+        ;;
     doctor|check)
         cmd_doctor
+        ;;
+    backup)
+        cmd_backup
         ;;
     help|--help|-h)
         show_help

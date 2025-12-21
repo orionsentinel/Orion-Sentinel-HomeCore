@@ -11,14 +11,17 @@ services:
     image: ghcr.io/home-assistant/home-assistant:stable
     container_name: homeassistant
     restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
     environment:
       - TZ=${TZ:-Europe/Amsterdam}
     volumes:
       - ${DATA_ROOT}/homeassistant/config:/config
     ports:
-      - "${HOST_IP:-0.0.0.0}:${HA_PORT:-8123}:8123"
+      - "${HOST_IP:-127.0.0.1}:${HA_PORT:-8123}:8123"
     networks:
       - homecore_internal
+      - homecore_lan
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8123/"]
       interval: 30s
@@ -30,6 +33,10 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          memory: "512M"
     # No profile = runs by default
 
   # Home Assistant with host network mode for device discovery (mDNS, SSDP)
@@ -38,6 +45,8 @@ services:
     image: ghcr.io/home-assistant/home-assistant:stable
     container_name: homeassistant-hostnet
     restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
     network_mode: host
     environment:
       - TZ=${TZ:-Europe/Amsterdam}
@@ -54,5 +63,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          memory: "512M"
     profiles:
       - ha-hostnet

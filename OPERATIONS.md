@@ -26,13 +26,20 @@ The `orionctl` command is your primary interface for managing services.
 
 # View logs
 ./scripts/orionctl logs homeassistant
+./scripts/orionctl logs homeassistant --follow  # Follow logs
 ./scripts/orionctl logs mosquitto
 
 # Restart services
 ./scripts/orionctl restart
 
+# Validate configuration
+./scripts/orionctl validate
+
 # Health check
 ./scripts/orionctl doctor
+
+# Backup all data
+./scripts/orionctl backup
 ```
 
 ### Using Make (Alternative)
@@ -81,6 +88,26 @@ docker compose pull --dry-run
 
 ## Backups
 
+### Using the Backup Script (Recommended)
+
+The included backup script handles everything automatically:
+
+```bash
+# Create a backup
+./scripts/backup.sh
+```
+
+This creates a complete backup including:
+- Home Assistant configuration
+- Mosquitto configuration and data
+- Zigbee2MQTT configuration
+- Node-RED flows
+- ESPHome configurations
+- Mealie database dump and data
+- `.env` configuration file
+
+Backups are stored in `${DATA_ROOT}/backups` (default: `/srv/orion/homecore/backups`) and are automatically cleaned up (keeps last 7 backups).
+
 ### What to Backup
 
 | Path | Description | Frequency |
@@ -88,94 +115,81 @@ docker compose pull --dry-run
 | `${DATA_ROOT}/homeassistant/config/` | HA configuration | Daily |
 | `${DATA_ROOT}/zigbee2mqtt/data/` | Z2M config and device DB | Daily |
 | `${DATA_ROOT}/nodered/data/` | Node-RED flows | After changes |
-| `${DATA_ROOT}/mealie/` | Mealie data + Postgres | Weekly |
+| `${DATA_ROOT}/mealie/` | Mealie data + Postgres dump | Weekly |
 | `.env` | Environment configuration | After changes |
 
-### Manual Backup
+### Automated Backups
+
+Add to crontab for automatic daily backups:
 
 ```bash
-# Set backup directory
-BACKUP_DIR="/backup/homecore/$(date +%Y%m%d)"
-mkdir -p "$BACKUP_DIR"
-
-# Stop services for consistent backup
-./scripts/orionctl down
-
-# Backup data
-sudo tar -czf "$BACKUP_DIR/homecore-data.tar.gz" -C /srv/orion homecore
-
-# Backup configuration
-cp .env "$BACKUP_DIR/"
-
-# Restart services
-./scripts/orionctl up
+crontab -e
 ```
 
-### Automated Backup Script
-
-Create a backup script:
-
-```bash
-sudo nano /opt/orion/scripts/backup.sh
-```
-
-```bash
-#!/bin/bash
-set -e
-
-BACKUP_ROOT="/backup/homecore"
-DATA_ROOT="/srv/orion/homecore"
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="${BACKUP_ROOT}/${DATE}"
-
-mkdir -p "$BACKUP_DIR"
-
-# Backup Home Assistant (hot backup is safe)
-tar -czf "${BACKUP_DIR}/homeassistant.tar.gz" -C "$DATA_ROOT" homeassistant
-
-# Backup Zigbee2MQTT
-tar -czf "${BACKUP_DIR}/zigbee2mqtt.tar.gz" -C "$DATA_ROOT" zigbee2mqtt
-
-# Backup Node-RED
-tar -czf "${BACKUP_DIR}/nodered.tar.gz" -C "$DATA_ROOT" nodered
-
-# Backup Mealie with database dump
-docker exec mealie-db pg_dump -U mealie mealie > "${BACKUP_DIR}/mealie.sql"
-tar -czf "${BACKUP_DIR}/mealie.tar.gz" -C "$DATA_ROOT" mealie
-
-# Cleanup old backups (keep 7 days)
-find "$BACKUP_ROOT" -type d -mtime +7 -exec rm -rf {} +
-
-echo "Backup completed: $BACKUP_DIR"
-```
-
-Add to crontab:
-
-```bash
-sudo crontab -e
-```
+Add this line:
 
 ```
 # Daily backup at 3 AM
-0 3 * * * /opt/orion/scripts/backup.sh >> /var/log/homecore-backup.log 2>&1
+0 3 * * * cd /opt/orion/homecore && ./scripts/backup.sh >> /var/log/homecore-backup.log 2>&1
+```
+
+### Offsite Backup
+
+Copy backups to external storage:
+
+```bash
+# Copy to external drive
+rsync -av /srv/orion/homecore/backups/ /mnt/external/homecore-backups/
+
+# Copy to NAS (via rsync)
+rsync -av /srv/orion/homecore/backups/ user@nas:/backups/homecore/
+
+# Copy to cloud storage (using rclone)
+rclone sync /srv/orion/homecore/backups/ remote:homecore-backups/
 ```
 
 ### Restore from Backup
+
+Use the restore script:
+
+```bash
+# List available backups
+ls -la /srv/orion/homecore/backups/
+
+# Restore from specific backup
+./scripts/restore.sh homecore_backup_20241221_030000
+```
+
+The restore script will:
+1. Stop all running services
+2. Create a safety backup of current data
+3. Restore data from the specified backup
+4. Optionally restore the database
+5. Provide instructions to restart services
+
+**Manual Restore** (if script fails):
 
 ```bash
 # Stop services
 ./scripts/orionctl down
 
-# Restore data
-sudo tar -xzf /backup/homecore/20240101/homecore-data.tar.gz -C /srv/orion
+# Restore data (example with specific backup)
+BACKUP_PATH="/srv/orion/homecore/backups/homecore_backup_20241221_030000"
 
-# Restore environment
-cp /backup/homecore/20240101/.env .
+tar -xzf "${BACKUP_PATH}/homeassistant_config.tar.gz" -C /srv/orion/homecore/homeassistant
+tar -xzf "${BACKUP_PATH}/mosquitto.tar.gz" -C /srv/orion/homecore
+tar -xzf "${BACKUP_PATH}/zigbee2mqtt_config.tar.gz" -C /srv/orion/homecore/zigbee2mqtt
+tar -xzf "${BACKUP_PATH}/nodered_flows.tar.gz" -C /srv/orion/homecore/nodered
+tar -xzf "${BACKUP_PATH}/esphome_config.tar.gz" -C /srv/orion/homecore/esphome
+tar -xzf "${BACKUP_PATH}/mealie_data.tar.gz" -C /srv/orion/homecore/mealie
 
-# Restore Mealie database (if needed)
+# Restore Mealie database
 docker compose up -d mealie-db
 sleep 10
-docker exec -i mealie-db psql -U mealie mealie < /backup/homecore/20240101/mealie.sql
+cat "${BACKUP_PATH}/mealie_db.sql" | docker exec -i mealie-db psql -U mealie mealie
+
+# Restore .env if needed
+cp "${BACKUP_PATH}/.env" .
 
 # Start services
 ./scripts/orionctl up
@@ -359,8 +373,10 @@ docker system df
 | Task | Frequency | Command |
 |------|-----------|---------|
 | Health check | Daily | `./scripts/orionctl doctor` |
+| Backup | Daily | `./scripts/orionctl backup` or automated cron |
 | Update images | Weekly | `./scripts/orionctl update` |
-| Backup | Daily | Automated script |
+| Validate config | Before changes | `./scripts/orionctl validate` |
 | Docker cleanup | Monthly | `docker system prune -f` |
 | Review logs | Weekly | Check for errors/warnings |
-| Test restore | Quarterly | Restore backup to test system |
+| Test restore | Quarterly | `./scripts/restore.sh <backup>` on test system |
+| Security review | Quarterly | Review exposed ports: `ss -lntp` |

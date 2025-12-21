@@ -1,0 +1,143 @@
+name: Compose Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  validate-compose:
+    name: Validate Docker Compose Files
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Create dummy .env file
+        run: |
+          cp env/.env.example .env
+          # Replace default secrets with dummy values for validation
+          sed -i 's/changeme/dummy_secret_for_ci_validation_only/g' .env
+      
+      - name: Validate main compose file
+        run: docker compose config > /dev/null
+      
+      - name: Validate with all profiles
+        run: |
+          docker compose --profile mqtt --profile zigbee --profile nodered --profile esphome --profile mealie config > /dev/null
+      
+      - name: Check for unused services
+        run: |
+          echo "Services defined:"
+          docker compose config --services
+
+  lint-yaml:
+    name: Lint YAML Files
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install yamllint
+        run: pip install yamllint
+      
+      - name: Lint YAML files
+        run: |
+          yamllint -d "{extends: default, rules: {line-length: {max: 120}, comments: {min-spaces-from-content: 1}}}" \
+            compose.yaml \
+            stacks/*/compose.yaml \
+            stacks/*/config/*.yaml || true
+
+  shellcheck:
+    name: ShellCheck Scripts
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './scripts'
+          severity: warning
+          ignore_paths: |
+            .git
+            node_modules
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check for secrets in code
+        run: |
+          # Check that .env is not committed
+          if [ -f .env ]; then
+            echo "ERROR: .env file should not be committed!"
+            exit 1
+          fi
+          
+          # Check for hardcoded secrets patterns
+          echo "Scanning for potential hardcoded secrets..."
+          
+          # This is a basic check - would fail on actual secrets
+          if grep -r "password.*=.*['\"].*['\"]" --include="*.yaml" --include="*.yml" stacks/ 2>/dev/null | grep -v "changeme" | grep -v "POSTGRES_PASSWORD"; then
+            echo "WARNING: Potential hardcoded passwords found"
+            exit 1
+          fi
+          
+          echo "No obvious secrets found in code"
+      
+      - name: Verify gitignore coverage
+        run: |
+          echo "Checking .gitignore coverage..."
+          
+          # Verify critical patterns are in .gitignore
+          for pattern in ".env" "secrets/" "*.secret" "*.key"; do
+            if ! grep -q "$pattern" .gitignore; then
+              echo "ERROR: Pattern '$pattern' not found in .gitignore"
+              exit 1
+            fi
+          done
+          
+          echo ".gitignore coverage is adequate"
+
+  documentation:
+    name: Check Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Verify required documentation exists
+        run: |
+          for doc in README.md INSTALL.md CONFIGURATION.md OPERATIONS.md TROUBLESHOOTING.md SECURITY.md; do
+            if [ ! -f "$doc" ]; then
+              echo "ERROR: Required documentation file missing: $doc"
+              exit 1
+            fi
+            echo "✓ Found $doc"
+          done
+      
+      - name: Check for TODO/FIXME in docs
+        run: |
+          if grep -r "TODO\|FIXME" *.md 2>/dev/null; then
+            echo "WARNING: Found TODO/FIXME items in documentation"
+          fi

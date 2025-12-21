@@ -7,6 +7,8 @@ services:
     image: ghcr.io/mealie-recipes/mealie:latest
     container_name: mealie
     restart: unless-stopped
+    init: true
+    stop_grace_period: 10s
     environment:
       - TZ=${TZ:-Europe/Amsterdam}
       - PUID=${PUID:-1000}
@@ -26,9 +28,10 @@ services:
     volumes:
       - ${DATA_ROOT}/mealie/data:/app/data
     ports:
-      - "${HOST_IP:-0.0.0.0}:${MEALIE_PORT:-9000}:9000"
+      - "${HOST_IP:-127.0.0.1}:${MEALIE_PORT:-9000}:9000"
     networks:
       - homecore_internal
+      - homecore_lan
     depends_on:
       mealie-db:
         condition: service_healthy
@@ -43,6 +46,10 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          memory: "256M"
     profiles:
       - mealie
 
@@ -50,6 +57,9 @@ services:
     image: postgres:15-alpine
     container_name: mealie-db
     restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    user: "999:999"
     environment:
       - TZ=${TZ:-Europe/Amsterdam}
       - POSTGRES_USER=${POSTGRES_USER:-mealie}
@@ -70,5 +80,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          memory: "128M"
     profiles:
       - mealie

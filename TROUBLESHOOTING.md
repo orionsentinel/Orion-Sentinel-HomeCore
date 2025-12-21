@@ -144,11 +144,12 @@ sudo chown -R 1000:1000 /srv/orion/homecore/nodered
 
 **Diagnosis**:
 ```bash
-# Check network exists
+# Check networks exist
 docker network ls | grep homecore
 
-# Check containers are on the network
+# Check containers are on the networks
 docker network inspect homecore_internal
+docker network inspect homecore_lan
 
 # Test connectivity between containers
 docker exec homeassistant ping -c 3 mosquitto
@@ -156,15 +157,90 @@ docker exec homeassistant ping -c 3 mosquitto
 
 **Solutions**:
 
-1. Recreate the network:
+1. Recreate the networks:
 ```bash
 ./scripts/orionctl down
-docker network rm homecore_internal
+docker network rm homecore_internal homecore_lan
 docker network create homecore_internal
+docker network create homecore_lan
 ./scripts/orionctl up
 ```
 
-2. Ensure services use the correct network name in compose files.
+2. Re-run bootstrap to ensure networks exist:
+```bash
+./scripts/bootstrap-homecore.sh
+```
+
+### Services Not Accessible from LAN
+
+**Symptom**: Can't access services from other devices on your network.
+
+**Diagnosis**:
+```bash
+# Check HOST_IP setting
+grep HOST_IP .env
+
+# Verify port bindings
+docker ps --format '{{.Names}}\t{{.Ports}}'
+
+# Check what's listening on host
+ss -lntp | grep -E ':(8123|1883|8080|1880|6052|9000)'
+```
+
+**Solutions**:
+
+1. If `HOST_IP=127.0.0.1` (default), change to your LAN IP or 0.0.0.0:
+```bash
+sudo nano .env
+# Change: HOST_IP=127.0.0.1
+# To: HOST_IP=192.168.1.100  (your machine's IP)
+# Or: HOST_IP=0.0.0.0  (all interfaces - less secure)
+```
+
+2. Restart services:
+```bash
+./scripts/orionctl down
+./scripts/orionctl up
+```
+
+3. Verify new bindings:
+```bash
+docker ps --format '{{.Names}}\t{{.Ports}}'
+# Should show your IP or 0.0.0.0 instead of 127.0.0.1
+```
+
+### Services Accessible But Not Wanted on LAN
+
+**Symptom**: Services are exposed on LAN but you want localhost-only.
+
+**Diagnosis**:
+```bash
+# Check current bindings
+docker ps --format '{{.Names}}\t{{.Ports}}'
+ss -lntp | grep -E ':(8123|1883|8080|1880|6052|9000)'
+```
+
+**Solution**:
+
+1. Set HOST_IP to localhost:
+```bash
+sudo nano .env
+# Change HOST_IP to: 127.0.0.1
+```
+
+2. Restart services:
+```bash
+./scripts/orionctl down
+./scripts/orionctl up
+```
+
+3. Verify security:
+```bash
+# Should show 127.0.0.1:<port> for all services
+docker ps --format '{{.Names}}\t{{.Ports}}'
+```
+
+See [SECURITY.md](SECURITY.md) for network exposure policies.
 
 ### Home Assistant Not Starting
 

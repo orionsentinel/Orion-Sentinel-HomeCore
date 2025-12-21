@@ -7,6 +7,9 @@ services:
     image: eclipse-mosquitto:2
     container_name: mosquitto
     restart: unless-stopped
+    init: true
+    stop_grace_period: 10s
+    user: "1883:1883"
     environment:
       - TZ=${TZ:-Europe/Amsterdam}
     volumes:
@@ -14,9 +17,10 @@ services:
       - ${DATA_ROOT}/mosquitto/data:/mosquitto/data
       - ${DATA_ROOT}/mosquitto/log:/mosquitto/log
     ports:
-      - "${HOST_IP:-0.0.0.0}:${MQTT_PORT:-1883}:1883"
+      - "${HOST_IP:-127.0.0.1}:${MQTT_PORT:-1883}:1883"
     networks:
       - homecore_internal
+      - homecore_lan
     healthcheck:
       test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
       interval: 30s
@@ -28,5 +32,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          memory: "64M"
     profiles:
       - mqtt
