@@ -343,9 +343,9 @@ sudo nano /etc/systemd/system/homecore.service
 For example, to start the full home automation stack on boot:
 
 ```ini
-ExecStart=/bin/bash -lc '/path/to/repo/scripts/orionctl up homeauto'
-ExecStop=/bin/bash -lc '/path/to/repo/scripts/orionctl down homeauto'
-ExecReload=/bin/bash -lc '/path/to/repo/scripts/orionctl restart homeauto'
+ExecStart=/bin/bash -c '/path/to/repo/scripts/orionctl up homeauto'
+ExecStop=/bin/bash -c '/path/to/repo/scripts/orionctl down homeauto'
+ExecReload=/bin/bash -c '/path/to/repo/scripts/orionctl restart homeauto'
 ```
 
 Available bundles:

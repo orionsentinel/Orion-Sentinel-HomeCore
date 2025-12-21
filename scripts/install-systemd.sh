@@ -86,13 +86,22 @@ log_success "Docker Compose v2 is available"
 
 # Check if user can run Docker (or is root)
 if [ "$EUID" -ne 0 ] && ! docker ps &> /dev/null; then
-    log_warn "Current user cannot run Docker without sudo"
-    echo ""
-    echo "Please add your user to the docker group:"
-    show_docker_group_help "  # Then log out and log back in"
-    echo ""
-    echo "Or run this script with sudo (not recommended for service installation)."
-    echo ""
+    # Check if user is in docker group but hasn't logged out/in yet
+    if groups | grep -q docker; then
+        log_warn "You're in the docker group but need to log out and back in"
+        echo ""
+        echo "The systemd service will work correctly, but to use Docker now:"
+        echo "  # Log out and log back in (or run: newgrp docker)"
+        echo ""
+    else
+        log_warn "Current user cannot run Docker without sudo"
+        echo ""
+        echo "Please add your user to the docker group:"
+        show_docker_group_help "  # Then log out and log back in"
+        echo ""
+        echo "Note: The systemd service may still work if Docker daemon is accessible."
+        echo ""
+    fi
 fi
 
 # Check if .env exists

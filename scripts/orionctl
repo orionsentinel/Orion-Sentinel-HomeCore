@@ -260,7 +260,8 @@ cmd_update() {
     docker compose pull
     
     log_info "Recreating services with new images..."
-    # Note: This recreates all currently running services, maintaining their profiles
+    # Note: This recreates services that are already running with new images.
+    # If you need to update with specific profiles, stop first, then start with profiles.
     docker compose up -d
     
     log_success "Services updated and restarted!"
