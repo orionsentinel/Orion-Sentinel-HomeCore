@@ -1,0 +1,31 @@
+# =============================================================================
+# ESPHome Stack
+# =============================================================================
+
+services:
+  esphome:
+    image: ghcr.io/esphome/esphome:latest
+    container_name: esphome
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - ESPHOME_DASHBOARD_USE_PING=true
+    volumes:
+      - ${DATA_ROOT}/esphome/config:/config
+    ports:
+      - "${HOST_IP:-0.0.0.0}:${ESPHOME_PORT:-6052}:6052"
+    networks:
+      - homecore_internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6052/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - esphome

@@ -1,0 +1,32 @@
+# =============================================================================
+# Mosquitto MQTT Stack
+# =============================================================================
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT}/mosquitto/config:/mosquitto/config
+      - ${DATA_ROOT}/mosquitto/data:/mosquitto/data
+      - ${DATA_ROOT}/mosquitto/log:/mosquitto/log
+    ports:
+      - "${HOST_IP:-0.0.0.0}:${MQTT_PORT:-1883}:1883"
+    networks:
+      - homecore_internal
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - mqtt

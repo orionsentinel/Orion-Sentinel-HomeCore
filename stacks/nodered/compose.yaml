@@ -1,0 +1,30 @@
+# =============================================================================
+# Node-RED Stack
+# =============================================================================
+
+services:
+  nodered:
+    image: nodered/node-red:latest
+    container_name: nodered
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT}/nodered/data:/data
+    ports:
+      - "${HOST_IP:-0.0.0.0}:${NODERED_PORT:-1880}:1880"
+    networks:
+      - homecore_internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1880/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - nodered

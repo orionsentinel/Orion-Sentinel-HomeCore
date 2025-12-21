@@ -1,0 +1,60 @@
+# =============================================================================
+# Zigbee2MQTT Configuration
+# =============================================================================
+# Starter configuration for Zigbee2MQTT
+# See https://www.zigbee2mqtt.io/guide/configuration/ for all options
+# =============================================================================
+
+# MQTT connection settings
+mqtt:
+  # MQTT broker address (use container name for docker networking)
+  server: mqtt://mosquitto:1883
+  # Optional: Set MQTT user/password if authentication is enabled
+  # user: zigbee2mqtt
+  # password: your_password
+
+# Serial port configuration
+serial:
+  # Path to your Zigbee coordinator device
+  # Common values: /dev/ttyUSB0, /dev/ttyACM0, /dev/serial/by-id/...
+  port: /dev/ttyUSB0
+  # Adapter type (auto-detected in most cases)
+  # adapter: auto
+
+# Web interface settings
+frontend:
+  port: 8080
+  host: 0.0.0.0
+
+# Home Assistant integration
+homeassistant: true
+
+# Permit joining (set to true to allow new devices to pair)
+permit_join: false
+
+# Advanced settings
+advanced:
+  # Network key (auto-generated on first start)
+  # You can set a custom key for migration purposes
+  # network_key: GENERATE
+  
+  # Log level: debug, info, warn, error
+  log_level: info
+  
+  # Log output format
+  log_output:
+    - console
+    - file
+  
+  # Home Assistant discovery
+  homeassistant_discovery_topic: homeassistant
+  homeassistant_status_topic: homeassistant/status
+
+# Device configuration (add your devices here)
+devices: {}
+
+# Group configuration
+groups: {}
+
+# Availability reporting
+availability: true

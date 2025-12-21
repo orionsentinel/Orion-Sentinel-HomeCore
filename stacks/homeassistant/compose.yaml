@@ -1,0 +1,58 @@
+# =============================================================================
+# Home Assistant Stack
+# =============================================================================
+# Home Assistant runs by default (no profile required).
+# Use profile 'ha-hostnet' for host network mode (device discovery).
+# =============================================================================
+
+services:
+  # Standard Home Assistant with bridge networking
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT}/homeassistant/config:/config
+    ports:
+      - "${HOST_IP:-0.0.0.0}:${HA_PORT:-8123}:8123"
+    networks:
+      - homecore_internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # No profile = runs by default
+
+  # Home Assistant with host network mode for device discovery (mDNS, SSDP)
+  # Use this instead of standard HA when you need local network discovery
+  homeassistant-hostnet:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant-hostnet
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT}/homeassistant/config:/config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - ha-hostnet

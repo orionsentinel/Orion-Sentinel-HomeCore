@@ -1,0 +1,57 @@
+# =============================================================================
+# Orion-Sentinel-HomeCore .gitignore
+# =============================================================================
+
+# Environment files (contain secrets)
+.env
+*.env.local
+
+# Secrets
+secrets/
+*.secret
+*.key
+*.pem
+
+# Data directories (created at runtime)
+data/
+
+# Backup files
+*.bak
+*.backup
+backups/
+
+# Log files
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-*
+
+# Temporary files
+*.tmp
+tmp/
+
+# Docker volumes (if mounted locally for testing)
+volumes/
+
+# Mosquitto password files
+stacks/mqtt/config/passwords/passwd
+stacks/mqtt/config/passwords/*.passwd
+
+# Node modules (if any tooling is added)
+node_modules/
+
+# Python virtual environments
+venv/
+.venv/
+__pycache__/
+*.pyc

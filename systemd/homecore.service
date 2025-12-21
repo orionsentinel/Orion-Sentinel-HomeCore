@@ -1,0 +1,18 @@
+[Unit]
+Description=Orion-Sentinel-HomeCore
+Documentation=https://github.com/orionsentinel/Orion-Sentinel-HomeCore
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/orion/homecore
+ExecStart=/opt/orion/homecore/scripts/orionctl up
+ExecStop=/opt/orion/homecore/scripts/orionctl down
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

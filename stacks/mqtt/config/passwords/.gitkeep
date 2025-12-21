@@ -1,0 +1,3 @@
+# Mosquitto password file placeholder
+# This file is ignored by git. Generate passwords using:
+# docker exec mosquitto mosquitto_passwd -c /mosquitto/config/passwords/passwd username

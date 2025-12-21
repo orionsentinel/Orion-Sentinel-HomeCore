@@ -1,0 +1,35 @@
+# Home Assistant Configuration
+# This is a minimal starter configuration.
+# See https://www.home-assistant.io/docs/configuration/ for more options.
+
+homeassistant:
+  name: Home
+  unit_system: metric
+  time_zone: Europe/Amsterdam
+  # Customize these for your location:
+  # latitude: 52.3676
+  # longitude: 4.9041
+  # elevation: 0
+
+# Enable the default set of integrations
+default_config:
+
+# Enable logging
+logger:
+  default: info
+
+# HTTP configuration
+http:
+  # Uncomment and set to your LAN subnet for trusted networks
+  # trusted_proxies:
+  #   - 192.168.1.0/24
+  use_x_forwarded_for: false
+
+# Automation placeholder
+automation: !include automations.yaml
+
+# Scene placeholder
+scene: !include scenes.yaml
+
+# Script placeholder
+script: !include scripts.yaml
