@@ -141,10 +141,10 @@ The bootstrap script prepares your environment:
 
 This script will:
 - Verify Docker and Docker Compose are installed
-- Create the data directory structure
-- Generate secure passwords/secrets
+- Create the data directory structure (`/srv/orion/homecore` by default)
+- Generate secure passwords/secrets automatically
 - Copy default configuration files
-- Create the Docker network
+- Create the Docker networks
 
 ## Step 5: Configure Environment
 
@@ -154,20 +154,28 @@ Review and customize the environment file:
 sudo nano .env
 ```
 
-Key settings to review:
+**Important settings to review:**
 
 ```bash
 # Set your timezone
 TZ=Europe/Amsterdam
 
-# Set your LAN IP (or keep 0.0.0.0 for all interfaces)
-HOST_IP=192.168.1.100
+# Set your LAN IP for service binding (default: 127.0.0.1 for localhost-only)
+# Change to your machine's LAN IP (e.g., 192.168.1.100) for LAN access
+# Or use 0.0.0.0 to bind to all interfaces (understand security implications)
+HOST_IP=127.0.0.1
 
-# Data storage location
+# Data storage location (created by bootstrap script)
 DATA_ROOT=/srv/orion/homecore
+
+# User/Group IDs (optional, for fine-grained permissions)
+# PUID=1000
+# PGID=1000
 ```
 
-See [CONFIGURATION.md](CONFIGURATION.md) for all available settings.
+**Security Note**: The default `HOST_IP=127.0.0.1` makes services accessible only from the host machine. This is the most secure configuration. Change only if you need LAN access.
+
+See [CONFIGURATION.md](CONFIGURATION.md) for all available settings and [SECURITY.md](SECURITY.md) for security best practices.
 
 ## Step 6: Start Services
 
@@ -197,7 +205,21 @@ This starts Home Assistant, Mosquitto, Zigbee2MQTT, and Node-RED.
 
 ## Step 7: Access Services
 
-Open your browser and navigate to:
+**Default Configuration (Localhost-only)**:
+
+With the default `HOST_IP=127.0.0.1`, services are only accessible from the host machine:
+
+| Service | URL |
+|---------|-----|
+| Home Assistant | http://localhost:8123 |
+| Zigbee2MQTT | http://localhost:8080 |
+| Node-RED | http://localhost:1880 |
+| ESPHome | http://localhost:6052 |
+| Mealie | http://localhost:9000 |
+
+**LAN Access Configuration**:
+
+If you set `HOST_IP` to your machine's IP (e.g., `192.168.1.100`), services will be accessible from your LAN:
 
 | Service | URL |
 |---------|-----|
@@ -205,7 +227,22 @@ Open your browser and navigate to:
 | Zigbee2MQTT | http://192.168.1.100:8080 |
 | Node-RED | http://192.168.1.100:1880 |
 
-(Replace `192.168.1.100` with your Pi's IP address)
+**Verify Port Exposure**:
+
+Check what ports are exposed and how:
+
+```bash
+# List container ports
+docker ps --format '{{.Names}}\t{{.Ports}}'
+
+# List listening ports on host
+ss -lntp | grep -E ':(8123|1883|8080|1880|6052|9000)'
+```
+
+Expected output with `HOST_IP=127.0.0.1`:
+- All ports should show `127.0.0.1:<port>` (not `0.0.0.0:<port>`)
+
+See [SECURITY.md](SECURITY.md) for network exposure policies and best practices.
 
 ## Step 8: Initial Setup
 
@@ -265,5 +302,6 @@ This checks:
 ## Next Steps
 
 - [CONFIGURATION.md](CONFIGURATION.md) - Customize your setup
-- [OPERATIONS.md](OPERATIONS.md) - Learn daily operations
+- [OPERATIONS.md](OPERATIONS.md) - Learn daily operations (backup, update, etc.)
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Fix common issues
+- [SECURITY.md](SECURITY.md) - Security best practices and exposure policies
