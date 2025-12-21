@@ -36,7 +36,7 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-show_docker_group_help() {
+show_docker_group_instructions() {
     echo "  sudo usermod -aG docker \$USER"
     if [ -n "${1:-}" ]; then
         echo "$1"
@@ -65,7 +65,7 @@ if ! command -v docker &> /dev/null; then
     echo ""
     echo "Please install Docker first:"
     echo "  curl -fsSL https://get.docker.com | sh"
-    show_docker_group_help
+    show_docker_group_instructions
     echo ""
     exit 1
 fi
@@ -87,7 +87,7 @@ log_success "Docker Compose v2 is available"
 # Check if user can run Docker (or is root)
 if [ "$EUID" -ne 0 ] && ! docker ps &> /dev/null; then
     # Check if user is in docker group but hasn't logged out/in yet
-    if groups | grep -q docker; then
+    if groups | grep -qw docker; then
         log_warn "You're in the docker group but need to log out and back in"
         echo ""
         echo "The systemd service will work correctly, but to use Docker now:"
@@ -97,7 +97,7 @@ if [ "$EUID" -ne 0 ] && ! docker ps &> /dev/null; then
         log_warn "Current user cannot run Docker without sudo"
         echo ""
         echo "Please add your user to the docker group:"
-        show_docker_group_help "  # Then log out and log back in"
+        show_docker_group_instructions "  # Then log out and log back in"
         echo ""
         echo "Note: The systemd service may still work if Docker daemon is accessible."
         echo ""

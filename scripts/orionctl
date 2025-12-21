@@ -261,7 +261,8 @@ cmd_update() {
     
     log_info "Recreating services with new images..."
     # Note: This recreates services that are already running with new images.
-    # If you need to update with specific profiles, stop first, then start with profiles.
+    # Docker Compose remembers which services were started and recreates only those.
+    # For profile-specific updates, use: orionctl down <bundle> && orionctl up <bundle>
     docker compose up -d
     
     log_success "Services updated and restarted!"
