@@ -1,0 +1,36 @@
+# =============================================================================
+# Zigbee2MQTT Stack
+# =============================================================================
+
+services:
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:latest
+    container_name: zigbee2mqtt
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT}/zigbee2mqtt/data:/app/data
+    ports:
+      - "${HOST_IP:-0.0.0.0}:${ZIGBEE_PORT:-8080}:8080"
+    devices:
+      - ${ZIGBEE_DEVICE:-/dev/ttyUSB0}:/dev/ttyUSB0
+    networks:
+      - homecore_internal
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    healthcheck:
+      # Using wget as zigbee2mqtt image is Alpine-based (wget available, curl not)
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - zigbee

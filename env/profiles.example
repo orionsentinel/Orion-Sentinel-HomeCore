@@ -1,0 +1,75 @@
+# =============================================================================
+# Orion-Sentinel-HomeCore Profile Reference
+# =============================================================================
+# Profiles allow you to enable/disable optional services without editing
+# compose files directly.
+#
+# Set profiles in your .env file using COMPOSE_PROFILES:
+# Example: COMPOSE_PROFILES=mqtt,zigbee,nodered
+#
+# Or pass profiles directly to orionctl or docker compose:
+# ./scripts/orionctl up --profile mqtt --profile zigbee
+# docker compose --profile mqtt --profile zigbee up -d
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Available Profiles
+# -----------------------------------------------------------------------------
+
+# mqtt
+# ----
+# Enables: Mosquitto MQTT broker
+# Port: 1883
+# Use when: You have MQTT-based devices or need HA MQTT integration
+# Required env: MQTT_PORT
+
+# zigbee
+# ------
+# Enables: Zigbee2MQTT (requires mqtt profile)
+# Port: 8080 (web interface)
+# Use when: You have Zigbee devices and a USB Zigbee coordinator
+# Required env: ZIGBEE_PORT, ZIGBEE_DEVICE
+
+# nodered
+# -------
+# Enables: Node-RED for flow-based automation
+# Port: 1880
+# Use when: You need advanced automation beyond HA automations
+
+# esphome
+# -------
+# Enables: ESPHome dashboard for ESP device management
+# Port: 6052
+# Use when: You have ESP8266/ESP32 devices to program
+
+# mealie
+# ------
+# Enables: Mealie recipe manager + Postgres database
+# Port: 9000
+# Use when: You want a recipe/meal planning application
+
+# ha-hostnet
+# ----------
+# Enables: Home Assistant in host network mode
+# Use when: You need mDNS/SSDP discovery for devices
+# Note: Disables normal bridge networking for HA
+
+# -----------------------------------------------------------------------------
+# Recommended Profile Combinations
+# -----------------------------------------------------------------------------
+
+# Minimal (default - no profiles):
+# Just Home Assistant
+# COMPOSE_PROFILES=
+
+# Home Automation:
+# Full home automation stack with MQTT, Zigbee, and Node-RED
+# COMPOSE_PROFILES=mqtt,zigbee,nodered
+
+# Smart Home Complete:
+# Everything including Mealie for recipes
+# COMPOSE_PROFILES=mqtt,zigbee,nodered,esphome,mealie
+
+# Discovery Mode:
+# Enable host networking for device discovery
+# COMPOSE_PROFILES=ha-hostnet

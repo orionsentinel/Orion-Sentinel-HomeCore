@@ -1,0 +1,28 @@
+# =============================================================================
+# Orion-Sentinel-HomeCore - Main Compose Orchestrator
+# =============================================================================
+# This file aggregates all stacks into a single compose configuration.
+# Use profiles to enable/disable optional services.
+#
+# Usage:
+#   docker compose up -d                           # Core only (Home Assistant)
+#   docker compose --profile mqtt up -d            # Core + MQTT
+#   docker compose --profile mqtt --profile zigbee up -d  # Core + MQTT + Zigbee
+#
+# Or use orionctl:
+#   ./scripts/orionctl up
+#   ./scripts/orionctl up --profile mqtt
+# =============================================================================
+
+include:
+  - stacks/homeassistant/compose.yaml
+  - stacks/mqtt/compose.yaml
+  - stacks/zigbee/compose.yaml
+  - stacks/nodered/compose.yaml
+  - stacks/esphome/compose.yaml
+  - stacks/mealie/compose.yaml
+
+networks:
+  homecore_internal:
+    name: homecore_internal
+    driver: bridge
