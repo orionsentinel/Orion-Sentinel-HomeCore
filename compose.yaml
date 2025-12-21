@@ -26,3 +26,8 @@ networks:
   homecore_internal:
     name: homecore_internal
     driver: bridge
+    internal: false
+  homecore_lan:
+    name: homecore_lan
+    driver: bridge
+    internal: false

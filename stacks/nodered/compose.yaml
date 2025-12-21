@@ -7,14 +7,18 @@ services:
     image: nodered/node-red:latest
     container_name: nodered
     restart: unless-stopped
+    init: true
+    stop_grace_period: 10s
+    user: "1000:1000"
     environment:
       - TZ=${TZ:-Europe/Amsterdam}
     volumes:
       - ${DATA_ROOT}/nodered/data:/data
     ports:
-      - "${HOST_IP:-0.0.0.0}:${NODERED_PORT:-1880}:1880"
+      - "${HOST_IP:-127.0.0.1}:${NODERED_PORT:-1880}:1880"
     networks:
       - homecore_internal
+      - homecore_lan
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:1880/"]
       interval: 30s
@@ -26,5 +30,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          memory: "256M"
     profiles:
       - nodered

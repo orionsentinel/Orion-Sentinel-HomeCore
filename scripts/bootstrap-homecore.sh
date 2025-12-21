@@ -246,13 +246,20 @@ chown -R 1000:1000 "${DATA_ROOT}/nodered" 2>/dev/null || true
 # Docker Network
 # -----------------------------------------------------------------------------
 
-log_info "Checking Docker network..."
+log_info "Checking Docker networks..."
 
 if ! docker network inspect homecore_internal &> /dev/null; then
     docker network create homecore_internal
     log_success "Created homecore_internal network"
 else
     log_info "Network homecore_internal already exists"
+fi
+
+if ! docker network inspect homecore_lan &> /dev/null; then
+    docker network create homecore_lan
+    log_success "Created homecore_lan network"
+else
+    log_info "Network homecore_lan already exists"
 fi
 
 # -----------------------------------------------------------------------------
