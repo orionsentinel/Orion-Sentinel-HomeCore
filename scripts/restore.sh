@@ -67,7 +67,11 @@ if [ $# -eq 0 ]; then
     echo ""
     echo "Available backups:"
     if [ -d "$BACKUP_DIR" ]; then
-        ls -1 "$BACKUP_DIR" | grep "^homecore_backup_" || echo "  (none found)"
+        # Use glob instead of ls | grep
+        for backup in "$BACKUP_DIR"/homecore_backup_*; do
+            [ -e "$backup" ] || { echo "  (none found)"; break; }
+            basename "$backup"
+        done
     else
         echo "  Backup directory does not exist: ${BACKUP_DIR}"
     fi
@@ -237,7 +241,7 @@ if [ -f "${BACKUP_PATH}/mealie_db.sql" ]; then
         sleep 10
         
         log_info "Restoring database..."
-        cat "${BACKUP_PATH}/mealie_db.sql" | docker exec -i mealie-db psql -U "${POSTGRES_USER:-mealie}" -d "${POSTGRES_DB:-mealie}"
+        docker exec -i mealie-db psql -U "${POSTGRES_USER:-mealie}" -d "${POSTGRES_DB:-mealie}" < "${BACKUP_PATH}/mealie_db.sql"
         log_success "Mealie database restored"
         
         docker compose --profile mealie down
