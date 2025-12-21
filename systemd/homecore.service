@@ -1,18 +1,21 @@
 [Unit]
 Description=Orion-Sentinel-HomeCore
 Documentation=https://github.com/orionsentinel/Orion-Sentinel-HomeCore
-After=docker.service
+After=network-online.target docker.service
+Wants=network-online.target
 Requires=docker.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-WorkingDirectory=/opt/orion/homecore
-ExecStart=/opt/orion/homecore/scripts/orionctl up
-ExecStop=/opt/orion/homecore/scripts/orionctl down
+WorkingDirectory=__REPO_DIR__
+ExecStart=/bin/bash -lc '__REPO_DIR__/scripts/orionctl up core'
+ExecStop=/bin/bash -lc '__REPO_DIR__/scripts/orionctl down core'
+ExecReload=/bin/bash -lc '__REPO_DIR__/scripts/orionctl restart core'
 StandardOutput=journal
 StandardError=journal
-TimeoutStartSec=300
+TimeoutStartSec=0
+TimeoutStopSec=120
 
 [Install]
 WantedBy=multi-user.target
