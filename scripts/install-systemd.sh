@@ -36,6 +36,13 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+show_docker_group_help() {
+    echo "  sudo usermod -aG docker \$USER"
+    if [ -n "${1:-}" ]; then
+        echo "$1"
+    fi
+}
+
 # -----------------------------------------------------------------------------
 # Determine repository root (absolute path)
 # -----------------------------------------------------------------------------
@@ -58,7 +65,7 @@ if ! command -v docker &> /dev/null; then
     echo ""
     echo "Please install Docker first:"
     echo "  curl -fsSL https://get.docker.com | sh"
-    echo "  sudo usermod -aG docker \$USER"
+    show_docker_group_help
     echo ""
     exit 1
 fi
@@ -82,8 +89,7 @@ if [ "$EUID" -ne 0 ] && ! docker ps &> /dev/null; then
     log_warn "Current user cannot run Docker without sudo"
     echo ""
     echo "Please add your user to the docker group:"
-    echo "  sudo usermod -aG docker \$USER"
-    echo "  # Then log out and log back in"
+    show_docker_group_help "  # Then log out and log back in"
     echo ""
     echo "Or run this script with sudo (not recommended for service installation)."
     echo ""
@@ -94,6 +100,11 @@ if [ ! -f "${REPO_ROOT}/.env" ]; then
     log_error ".env file not found in ${REPO_ROOT}"
     echo ""
     echo "Please create .env file first:"
+    echo "  cd ${REPO_ROOT}"
+    echo "  cp env/.env.example .env"
+    echo "  nano .env"
+    echo ""
+    echo "Or run the bootstrap script:"
     echo "  cd ${REPO_ROOT}"
     echo "  ./scripts/bootstrap-homecore.sh"
     echo ""

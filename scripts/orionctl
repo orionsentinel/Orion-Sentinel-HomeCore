@@ -259,8 +259,8 @@ cmd_update() {
     # Pull all images
     docker compose pull
     
-    log_info "Recreating services with new images (core bundle)..."
-    # Recreate core (homeassistant) with new images
+    log_info "Recreating services with new images..."
+    # Note: This recreates all currently running services, maintaining their profiles
     docker compose up -d
     
     log_success "Services updated and restarted!"
