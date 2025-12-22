@@ -6,12 +6,20 @@ Orion-Sentinel-HomeCore provides a modular, Docker-based stack for running Home 
 
 ## Features
 
+### Core Services
 - **Home Assistant** - Core home automation platform
 - **Mosquitto MQTT** - Message broker for IoT devices
 - **Zigbee2MQTT** - Bridge for Zigbee devices
 - **Node-RED** - Flow-based automation
 - **ESPHome** - ESP device management
 - **Mealie** - Recipe and meal planning
+
+### Monitoring & Dashboard (New!)
+- **Homepage** - Unified dashboard with auto-discovery across all Orion nodes
+- **Uptime Kuma** - Service uptime monitoring and status pages
+- **Multi-node Discovery** - Auto-discover containers from HomeCore, DataAICore, DNS, and NetSec
+
+See [MULTI-NODE-SETUP.md](MULTI-NODE-SETUP.md) for complete multi-node configuration.
 
 ## Security First
 
@@ -36,12 +44,17 @@ cd Orion-Sentinel-HomeCore
 # Start core services (Home Assistant)
 ./scripts/orionctl up
 
-# Or start the full home automation stack
+# Start the full home automation stack
 ./scripts/orionctl up homeauto
+
+# Start Homepage dashboard and monitoring
+./scripts/orionctl up ui
 ```
 
 **Default Access** (localhost-only):
 - Home Assistant: http://localhost:8123
+- Homepage: http://localhost:3001 (with `ui` profile)
+- Uptime Kuma: http://localhost:3001 (with `ui` profile)
 
 For LAN access, edit `.env` and change `HOST_IP=127.0.0.1` to your machine's IP.
 
@@ -79,11 +92,17 @@ For LAN access, edit `.env` and change `HOST_IP=127.0.0.1` to your machine's IP.
 | Service | URL | Profile |
 |---------|-----|---------|
 | Home Assistant | http://localhost:8123 | (default) |
+| Homepage | http://localhost:3001 | portal |
+| Uptime Kuma | http://localhost:3001 | status |
 | Mosquitto MQTT | localhost:1883 | mqtt |
 | Zigbee2MQTT | http://localhost:8080 | zigbee |
 | Node-RED | http://localhost:1880 | nodered |
 | ESPHome | http://localhost:6052 | esphome |
 | Mealie | http://localhost:9000 | mealie |
+
+**Quick bundles:**
+- `./scripts/orionctl up ui` - Homepage + Uptime Kuma (monitoring dashboard)
+- `./scripts/orionctl up homeauto` - Full home automation (HA + MQTT + Zigbee + Node-RED)
 
 **For LAN Access**: Set `HOST_IP` in `.env` to your machine's IP (e.g., `192.168.1.100`). See [SECURITY.md](SECURITY.md) for details.
 
@@ -94,6 +113,7 @@ For LAN access, edit `.env` and change `HOST_IP=127.0.0.1` to your machine's IP.
 - [OPERATIONS.md](OPERATIONS.md) - Daily operations, backup, and maintenance
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues and solutions
 - [SECURITY.md](SECURITY.md) - Security policies and best practices
+- [MULTI-NODE-SETUP.md](MULTI-NODE-SETUP.md) - **NEW!** Multi-node ops plane setup
 - [MIGRATION.md](MIGRATION.md) - Migration guide
 
 ## Directory Structure
