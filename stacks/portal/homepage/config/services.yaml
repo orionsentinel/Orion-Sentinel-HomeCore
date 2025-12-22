@@ -1,0 +1,37 @@
+# =============================================================================
+# Homepage Services
+# =============================================================================
+# Most services are auto-discovered from Docker labels across all nodes
+# Manual entries below are for non-Docker services or special widgets
+# =============================================================================
+
+---
+# Observability & Monitoring (Manual links to DataAICore)
+- Observability:
+    - Grafana:
+        icon: grafana
+        href: http://${DATAAICORE_NODE_IP:-192.168.1.10}:${GRAFANA_PORT:-3000}
+        description: Metrics and dashboards
+        
+    - Prometheus:
+        icon: prometheus
+        href: http://${DATAAICORE_NODE_IP:-192.168.1.10}:${PROM_PORT:-9090}
+        description: Metrics collection
+        
+    - Loki:
+        icon: loki
+        href: http://${DATAAICORE_NODE_IP:-192.168.1.10}:${LOKI_PORT:-3100}
+        description: Log aggregation
+
+# Status monitoring widget - Configure after creating Status Page in Uptime Kuma
+# Uncomment and set KUMA_STATUS_SLUG after setup
+# - Status:
+#     - Service Status:
+#         icon: uptime-kuma
+#         href: http://${HOMECORE_NODE_IP:-127.0.0.1}:${KUMA_PORT:-3001}
+#         description: Service uptime monitoring
+#         widget:
+#           type: uptimekuma
+#           url: http://${HOMECORE_NODE_IP:-127.0.0.1}:${KUMA_PORT:-3001}
+#           slug: ${KUMA_STATUS_SLUG}
+

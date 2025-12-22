@@ -52,6 +52,14 @@ services:
           memory: "256M"
     profiles:
       - mealie
+    labels:
+      - homepage.group=HomeCore
+      - homepage.name=Mealie
+      - homepage.icon=mealie
+      - homepage.href=http://${HOST_IP:-127.0.0.1}:${MEALIE_PORT:-9000}
+      - homepage.description=Recipe manager
+      - homepage.weight=6
+      - homepage.instance=homecore
 
   mealie-db:
     image: postgres:15-alpine

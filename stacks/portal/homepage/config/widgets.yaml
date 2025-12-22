@@ -1,0 +1,27 @@
+# =============================================================================
+# Homepage Widgets
+# =============================================================================
+# Widgets displayed on the Homepage dashboard
+# =============================================================================
+
+---
+- search:
+    provider: custom
+    url: http://${DATAAICORE_IP:-192.168.1.10}:8888/search?q=
+    target: _blank
+    
+- datetime:
+    text_size: xl
+    format:
+      timeStyle: short
+      dateStyle: short
+      hourCycle: h23
+
+- resources:
+    cpu: true
+    memory: true
+    disk: /
+    
+- greeting:
+    text_size: xl
+    text: "Welcome to Orion Home"

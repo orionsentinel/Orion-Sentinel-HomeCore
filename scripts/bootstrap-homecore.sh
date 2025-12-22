@@ -197,6 +197,8 @@ DIRECTORIES=(
     "esphome/config"
     "mealie/data"
     "mealie/postgres"
+    "homepage"
+    "uptime-kuma"
 )
 
 for dir in "${DIRECTORIES[@]}"; do
@@ -230,6 +232,15 @@ fi
 if [ ! -f "${DATA_ROOT}/zigbee2mqtt/data/configuration.yaml" ]; then
     cp "${REPO_ROOT}/stacks/zigbee/config/configuration.yaml" "${DATA_ROOT}/zigbee2mqtt/data/"
     log_success "Copied Zigbee2MQTT default config"
+fi
+
+# Homepage config
+if [ ! -f "${DATA_ROOT}/homepage/settings.yaml" ]; then
+    cp "${REPO_ROOT}/stacks/portal/homepage/config/settings.yaml" "${DATA_ROOT}/homepage/"
+    cp "${REPO_ROOT}/stacks/portal/homepage/config/services.yaml" "${DATA_ROOT}/homepage/"
+    cp "${REPO_ROOT}/stacks/portal/homepage/config/widgets.yaml" "${DATA_ROOT}/homepage/"
+    cp "${REPO_ROOT}/stacks/portal/homepage/config/docker.yaml" "${DATA_ROOT}/homepage/"
+    log_success "Copied Homepage default config"
 fi
 
 # Fix permissions for services that run as non-root
@@ -279,16 +290,24 @@ echo "1. Review and customize your configuration:"
 echo "   sudo nano ${ENV_FILE}"
 echo ""
 echo "2. (Optional) Set your LAN IP for service binding:"
-echo "   Edit HOST_IP in .env (default: 0.0.0.0)"
+echo "   Edit HOST_IP in .env (default: 127.0.0.1)"
 echo ""
-echo "3. Start Home Assistant (core services):"
+echo "3. (Required for multi-node) Configure node IPs in .env:"
+echo "   HOMECORE_NODE_IP, DATAAICORE_NODE_IP, DNS_NODE_IP, NETSEC_NODE_IP"
+echo ""
+echo "4. Start Home Assistant (core services):"
 echo "   ./scripts/orionctl up"
 echo ""
-echo "4. (Optional) Enable additional profiles:"
+echo "5. (Optional) Start Homepage dashboard and monitoring:"
+echo "   ./scripts/orionctl up ui"
+echo ""
+echo "6. (Optional) Enable additional profiles:"
 echo "   ./scripts/orionctl up --profile mqtt --profile zigbee"
 echo ""
-echo "5. Access services at:"
+echo "7. Access services at:"
 echo "   Home Assistant: http://<your-ip>:${HA_PORT:-8123}"
+echo "   Homepage:       http://<your-ip>:${HOMEPAGE_PORT:-3001} (profile: portal)"
+echo "   Uptime Kuma:    http://<your-ip>:${KUMA_PORT:-3001} (profile: status)"
 echo "   Mosquitto MQTT: <your-ip>:${MQTT_PORT:-1883} (profile: mqtt)"
 echo "   Zigbee2MQTT:    http://<your-ip>:${ZIGBEE_PORT:-8080} (profile: zigbee)"
 echo "   Node-RED:       http://<your-ip>:${NODERED_PORT:-1880} (profile: nodered)"

@@ -1,0 +1,48 @@
+# =============================================================================
+# Homepage Settings
+# =============================================================================
+# Main settings for the Homepage dashboard
+# =============================================================================
+
+title: Orion Home
+favicon: https://cdn-icons-png.flaticon.com/512/3176/3176369.png
+theme: dark
+color: slate
+
+# Instance name for multi-instance deployments (avoids label collisions)
+instanceName: homecore
+
+# Background (optional - uncomment to enable)
+# background:
+#   image: /images/background.jpg
+#   blur: sm
+#   saturate: 50
+#   brightness: 50
+#   opacity: 50
+
+# Layout configuration - organize by node/function
+layout:
+  HomeCore:
+    style: row
+    columns: 4
+  DataAICore:
+    style: row
+    columns: 3
+  DNS:
+    style: row
+    columns: 2
+  NetSec:
+    style: row
+    columns: 2
+  Observability:
+    style: row
+    columns: 3
+
+# Show icons for services
+showStats: true
+
+# Enable search
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: true
+  hideVisitURL: true

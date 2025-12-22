@@ -260,6 +260,75 @@ See [SECURITY.md](SECURITY.md) for network exposure policies and best practices.
 3. Put your Zigbee device in pairing mode
 4. Device should appear in the interface
 
+### Homepage Dashboard (Optional - Multi-Node Monitoring)
+
+Homepage provides a unified dashboard for all your Orion services across all nodes (HomeCore, DataAICore, DNS, NetSec).
+
+#### Quick Start (Single Node)
+
+1. Start Homepage and Uptime Kuma:
+```bash
+./scripts/orionctl up ui
+```
+
+2. Access the services:
+- Homepage: http://\<your-ip\>:3001
+- Uptime Kuma: http://\<your-ip\>:3001
+
+3. Homepage will automatically discover running containers on HomeCore
+
+#### Multi-Node Setup
+
+For full multi-node discovery across your Orion infrastructure:
+
+1. **Configure node IPs in .env:**
+```bash
+sudo nano .env
+```
+
+Update these values with your actual node IPs:
+```
+HOMECORE_NODE_IP=192.168.1.100      # This machine
+DATAAICORE_NODE_IP=192.168.1.10     # DataAICore/Optiplex
+DNS_NODE_IP=192.168.1.11            # DNS node
+NETSEC_NODE_IP=192.168.1.12         # NetSec node
+```
+
+2. **On each remote node**, set up docker-socket-proxy (see node-specific docs)
+
+3. **Configure Uptime Kuma Status Page:**
+- Open Uptime Kuma: http://\<your-ip\>:3001
+- Create monitors for all your services
+- Create a Status Page and group monitors
+- Copy the Status Page slug (e.g., "orion-services")
+- Edit Homepage config:
+```bash
+sudo nano ${DATA_ROOT}/homepage/services.yaml
+```
+- Uncomment the Status section and set `KUMA_STATUS_SLUG` in .env
+
+4. **Customize Homepage (Optional):**
+```bash
+# Edit main settings
+sudo nano ${DATA_ROOT}/homepage/settings.yaml
+
+# Edit manual service links
+sudo nano ${DATA_ROOT}/homepage/services.yaml
+
+# Edit widgets
+sudo nano ${DATA_ROOT}/homepage/widgets.yaml
+
+# Edit Docker endpoints (for multi-node)
+sudo nano ${DATA_ROOT}/homepage/docker.yaml
+```
+
+5. **Restart Homepage to apply changes:**
+```bash
+./scripts/orionctl restart portal
+```
+
+**Note:** Homepage auto-discovers services via Docker labels. See [CONFIGURATION.md](CONFIGURATION.md) for label conventions.
+
 ## Run at Boot with systemd (Recommended)
 
 The easiest way to enable automatic startup on system boot is to use the provided installation script.

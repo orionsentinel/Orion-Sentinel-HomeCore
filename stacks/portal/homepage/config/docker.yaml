@@ -1,0 +1,27 @@
+# =============================================================================
+# Homepage Docker Integration
+# =============================================================================
+# Configure Docker auto-discovery using socket proxies across all nodes
+# Each node runs a docker-socket-proxy for safe, restricted Docker API access
+# =============================================================================
+
+---
+# HomeCore Docker Proxy (local)
+homecore:
+  host: http://orion_home_dockerproxy
+  port: 2375
+
+# DNS Node Docker Proxy (remote)
+dns:
+  host: ${DNS_NODE_IP:-192.168.1.11}
+  port: ${REMOTE_DOCKER_PROXY_PORT:-2376}
+
+# NetSec Node Docker Proxy (remote)
+netsec:
+  host: ${NETSEC_NODE_IP:-192.168.1.12}
+  port: ${REMOTE_DOCKER_PROXY_PORT:-2376}
+
+# DataAICore Node Docker Proxy (remote)
+dataaicore:
+  host: ${DATAAICORE_NODE_IP:-192.168.1.10}
+  port: ${REMOTE_DOCKER_PROXY_PORT:-2376}
