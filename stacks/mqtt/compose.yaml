@@ -38,3 +38,11 @@ services:
           memory: "64M"
     profiles:
       - mqtt
+    labels:
+      - homepage.group=HomeCore
+      - homepage.name=Mosquitto MQTT
+      - homepage.icon=mosquitto
+      - homepage.href=http://${HOST_IP:-127.0.0.1}:${MQTT_PORT:-1883}
+      - homepage.description=MQTT message broker
+      - homepage.weight=2
+      - homepage.instance=homecore

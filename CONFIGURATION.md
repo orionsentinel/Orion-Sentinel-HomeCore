@@ -90,6 +90,8 @@ Or pass profiles to orionctl:
 | `nodered` | Node-RED | Flow-based automation |
 | `esphome` | ESPHome | ESP device management |
 | `mealie` | Mealie + Postgres | Recipe manager |
+| `portal` | Homepage + Docker Proxy | Dashboard with auto-discovery |
+| `status` | Uptime Kuma | Service uptime monitoring |
 | `ha-hostnet` | Home Assistant (host network) | Enable device discovery |
 
 ### Profile Bundles (orionctl shortcuts)
@@ -99,7 +101,128 @@ Or pass profiles to orionctl:
 | `core` | (none) | Home Assistant only |
 | `homeauto` | mqtt, zigbee, nodered | Full home automation |
 | `apps` | mealie | Application services |
-| `all` | mqtt, zigbee, nodered, esphome, mealie | Everything |
+| `ui` | portal, status | Homepage + Uptime Kuma |
+| `all` | all profiles | Everything |
+
+## Multi-Node Configuration
+
+For multi-node setups with Homepage auto-discovery across DNS, NetSec, HomeCore, and DataAICore:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HOMECORE_NODE_IP` | `127.0.0.1` | IP of HomeCore (this machine) |
+| `DATAAICORE_NODE_IP` | `192.168.1.10` | IP of DataAICore/Optiplex |
+| `DNS_NODE_IP` | `192.168.1.11` | IP of DNS node |
+| `NETSEC_NODE_IP` | `192.168.1.12` | IP of NetSec node |
+| `REMOTE_DOCKER_PROXY_PORT` | `2376` | Port for docker-socket-proxy on remote nodes |
+
+See [MULTI-NODE-SETUP.md](MULTI-NODE-SETUP.md) for complete multi-node configuration instructions.
+
+## Homepage Configuration
+
+Homepage auto-discovers Docker containers via labels. Configuration files are in `${DATA_ROOT}/homepage/`.
+
+### Docker Label Conventions
+
+Add these labels to any service you want to appear in Homepage:
+
+```yaml
+labels:
+  - homepage.group=<NodeName>           # HomeCore, DataAICore, DNS, NetSec
+  - homepage.name=<ServiceName>         # Display name
+  - homepage.icon=<icon>                # Icon name
+  - homepage.href=http://<url>          # Service URL
+  - homepage.description=<description>  # Short description
+  - homepage.weight=<number>            # Order within group (1-99)
+  - homepage.instance=<instance>        # homecore, dataaicore, dns, netsec
+```
+
+Example:
+```yaml
+labels:
+  - homepage.group=HomeCore
+  - homepage.name=Home Assistant
+  - homepage.icon=home-assistant
+  - homepage.href=http://192.168.1.100:8123
+  - homepage.description=Home automation hub
+  - homepage.weight=1
+  - homepage.instance=homecore
+```
+
+### Homepage Settings
+
+Edit main settings:
+```bash
+sudo nano ${DATA_ROOT}/homepage/settings.yaml
+```
+
+Key options:
+- `title`: Dashboard title
+- `theme`: dark or light
+- `instanceName`: homecore (for multi-instance setups)
+- `layout`: Configure group layouts
+
+### Homepage Services
+
+Manual service links (for non-Docker services):
+```bash
+sudo nano ${DATA_ROOT}/homepage/services.yaml
+```
+
+### Homepage Widgets
+
+Configure dashboard widgets:
+```bash
+sudo nano ${DATA_ROOT}/homepage/widgets.yaml
+```
+
+Available widgets:
+- `datetime`: Date and time display
+- `resources`: CPU, memory, disk usage
+- `search`: Custom search integration
+- `uptimekuma`: Service status from Uptime Kuma (requires KUMA_STATUS_SLUG)
+
+### Docker Auto-Discovery
+
+Multi-node Docker endpoints:
+```bash
+sudo nano ${DATA_ROOT}/homepage/docker.yaml
+```
+
+Example for multi-node:
+```yaml
+homecore:
+  host: http://orion_home_dockerproxy
+  port: 2375
+
+dataaicore:
+  host: ${DATAAICORE_NODE_IP}
+  port: ${REMOTE_DOCKER_PROXY_PORT}
+```
+
+After editing, restart Homepage:
+```bash
+./scripts/orionctl restart portal
+```
+
+## Uptime Kuma Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KUMA_IMAGE_TAG` | `1` | Uptime Kuma version |
+| `KUMA_PORT` | `3001` | Uptime Kuma web interface port |
+| `KUMA_STATUS_SLUG` | (empty) | Status page slug for Homepage widget |
+
+### Creating a Status Page
+
+1. Open Uptime Kuma: http://\<ip\>:3001
+2. Create monitors for all services
+3. Go to Settings → Status Pages → New Status Page
+4. Add monitors and organize by groups
+5. Save and copy the slug from the URL
+6. Set `KUMA_STATUS_SLUG` in .env
+7. Edit Homepage services.yaml to uncomment Status section
+8. Restart Homepage
 
 ## Service-Specific Configuration
 

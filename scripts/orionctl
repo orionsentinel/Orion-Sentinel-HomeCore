@@ -85,16 +85,20 @@ show_help() {
     echo "  nodered          Node-RED"
     echo "  esphome          ESPHome"
     echo "  mealie           Mealie recipe manager"
+    echo "  portal           Homepage dashboard"
+    echo "  status           Uptime Kuma monitoring"
     echo ""
     echo "Bundles (shortcuts):"
     echo "  core             Home Assistant (default)"
     echo "  homeauto         Home Assistant + MQTT + Zigbee + Node-RED"
     echo "  apps             Mealie"
+    echo "  ui               Homepage + Uptime Kuma"
     echo "  all              All services"
     echo ""
     echo "Examples:"
     echo "  orionctl up                    # Start Home Assistant"
     echo "  orionctl up homeauto           # Start full home automation stack"
+    echo "  orionctl up ui                 # Start Homepage + Uptime Kuma"
     echo "  orionctl up --profile mqtt     # Start Home Assistant + MQTT"
     echo "  orionctl logs homeassistant    # View Home Assistant logs"
     echo "  orionctl validate              # Validate compose files"
@@ -127,11 +131,20 @@ get_profiles_for_bundle() {
         mealie|apps)
             PROFILE_ARGS=(--profile mealie)
             ;;
+        portal)
+            PROFILE_ARGS=(--profile portal)
+            ;;
+        status)
+            PROFILE_ARGS=(--profile status)
+            ;;
+        ui)
+            PROFILE_ARGS=(--profile portal --profile status)
+            ;;
         homeauto)
             PROFILE_ARGS=(--profile mqtt --profile zigbee --profile nodered)
             ;;
         all)
-            PROFILE_ARGS=(--profile mqtt --profile zigbee --profile nodered --profile esphome --profile mealie)
+            PROFILE_ARGS=(--profile mqtt --profile zigbee --profile nodered --profile esphome --profile mealie --profile portal --profile status)
             ;;
         *)
             # Unknown bundle, no profiles

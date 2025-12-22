@@ -45,6 +45,7 @@ services:
       - homepage.href=http://${HOST_IP:-127.0.0.1}:${HA_PORT:-8123}
       - homepage.description=Home automation hub
       - homepage.weight=1
+      - homepage.instance=homecore
       # Optional widget integration (requires HOMEPAGE_HA_TOKEN in .env)
       # - homepage.widget.type=homeassistant
       # - homepage.widget.url=http://homeassistant:8123

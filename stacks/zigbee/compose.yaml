@@ -41,3 +41,11 @@ services:
           memory: "128M"
     profiles:
       - zigbee
+    labels:
+      - homepage.group=HomeCore
+      - homepage.name=Zigbee2MQTT
+      - homepage.icon=zigbee2mqtt
+      - homepage.href=http://${HOST_IP:-127.0.0.1}:${ZIGBEE_PORT:-8080}
+      - homepage.description=Zigbee to MQTT bridge
+      - homepage.weight=3
+      - homepage.instance=homecore

@@ -475,6 +475,235 @@ sudo swapon /swapfile
 dmesg | grep -i oom
 ```
 
+## Homepage and Uptime Kuma Issues
+
+### Homepage Not Showing Services
+
+**Symptom**: Homepage dashboard is empty or missing services.
+
+**Diagnosis**:
+```bash
+# Check Homepage is running
+docker compose ps | grep homepage
+
+# Check docker-socket-proxy is healthy
+docker inspect orion_home_dockerproxy | grep -i health
+
+# Test Docker API access
+docker exec orion_home_homepage wget -q -O - http://orion_home_dockerproxy:2375/containers/json
+```
+
+**Solutions**:
+
+1. Verify docker-socket-proxy is running and healthy:
+```bash
+docker compose ps orion_home_dockerproxy
+docker compose restart orion_home_dockerproxy
+```
+
+2. Check docker.yaml configuration:
+```bash
+cat ${DATA_ROOT}/homepage/docker.yaml
+# Should have orion_home_dockerproxy endpoint
+```
+
+3. Verify containers have Homepage labels:
+```bash
+docker inspect homeassistant | grep homepage
+# Should show homepage.* labels
+```
+
+4. Restart Homepage:
+```bash
+./scripts/orionctl restart portal
+```
+
+### Remote Node Services Not Appearing
+
+**Symptom**: Services from DataAICore, DNS, or NetSec nodes don't appear in Homepage.
+
+**Diagnosis**:
+```bash
+# Test remote docker proxy from HomeCore
+curl http://<remote-node-ip>:2376/containers/json
+
+# Check if port is open
+nc -zv <remote-node-ip> 2376
+```
+
+**Solutions**:
+
+1. On remote node, check docker-socket-proxy is running:
+```bash
+docker ps | grep dockerproxy
+```
+
+2. On remote node, check port is published:
+```bash
+ss -lntp | grep 2376
+```
+
+3. On remote node, verify firewall allows HomeCore:
+```bash
+sudo ufw status numbered
+# Should show: allow from <HOMECORE_IP> to any port 2376
+```
+
+4. Add firewall rule on remote node if missing:
+```bash
+sudo ufw allow from <HOMECORE_IP> to any port 2376
+sudo ufw reload
+```
+
+5. Verify docker.yaml has correct remote node IP:
+```bash
+cat ${DATA_ROOT}/homepage/docker.yaml
+# Check IPs match actual node IPs
+```
+
+6. Update .env with correct node IPs:
+```bash
+sudo nano .env
+# Set DATAAICORE_NODE_IP, DNS_NODE_IP, NETSEC_NODE_IP
+```
+
+### Homepage Configuration Not Applied
+
+**Symptom**: Changes to Homepage configs don't appear.
+
+**Solutions**:
+
+1. Restart Homepage after config changes:
+```bash
+./scripts/orionctl restart portal
+```
+
+2. Check file permissions:
+```bash
+ls -la ${DATA_ROOT}/homepage/
+# Files should be readable
+```
+
+3. Check for YAML syntax errors:
+```bash
+docker compose logs orion_home_homepage | grep -i error
+docker compose logs orion_home_homepage | grep -i yaml
+```
+
+4. Verify config file exists:
+```bash
+ls -la ${DATA_ROOT}/homepage/settings.yaml
+ls -la ${DATA_ROOT}/homepage/docker.yaml
+```
+
+### Uptime Kuma Widget Not Working
+
+**Symptom**: Uptime Kuma status not showing in Homepage.
+
+**Diagnosis**:
+```bash
+# Check Uptime Kuma is running
+docker compose ps | grep uptime-kuma
+
+# Check KUMA_STATUS_SLUG is set
+grep KUMA_STATUS_SLUG .env
+```
+
+**Solutions**:
+
+1. Create a Status Page in Uptime Kuma:
+   - Open http://<homecore-ip>:3001
+   - Go to Settings → Status Pages
+   - Create new status page
+   - Add monitors to the page
+   - Copy the slug from URL
+
+2. Set the slug in .env:
+```bash
+sudo nano .env
+# Add: KUMA_STATUS_SLUG=your-slug-here
+```
+
+3. Uncomment Status section in services.yaml:
+```bash
+sudo nano ${DATA_ROOT}/homepage/services.yaml
+# Uncomment the Status section
+```
+
+4. Restart Homepage:
+```bash
+./scripts/orionctl restart portal
+```
+
+### Homepage Can't Access Docker Socket Proxy
+
+**Symptom**: Homepage logs show connection errors to docker proxy.
+
+**Diagnosis**:
+```bash
+# Check logs
+docker compose logs orion_home_homepage | grep -i proxy
+
+# Check network connectivity
+docker exec orion_home_homepage ping orion_home_dockerproxy
+
+# Check proxy is on same network
+docker inspect orion_home_homepage | grep Networks
+docker inspect orion_home_dockerproxy | grep Networks
+```
+
+**Solutions**:
+
+1. Ensure both containers are on homecore_internal network:
+```bash
+docker network inspect homecore_internal
+# Should list both containers
+```
+
+2. Recreate containers:
+```bash
+./scripts/orionctl down portal
+./scripts/orionctl up portal
+```
+
+3. Check docker-socket-proxy healthcheck:
+```bash
+docker inspect orion_home_dockerproxy --format='{{.State.Health.Status}}'
+# Should be "healthy"
+```
+
+### Firewall Blocking Docker Proxy on Remote Node
+
+**Symptom**: curl from HomeCore to remote docker proxy times out or is refused.
+
+**Diagnosis**:
+```bash
+# From HomeCore
+curl -v http://<remote-ip>:2376/version
+
+# On remote node
+sudo ufw status numbered
+ss -lntp | grep 2376
+```
+
+**Solutions**:
+
+1. On remote node, add firewall rule:
+```bash
+sudo ufw allow from <HOMECORE_IP> to any port 2376 comment 'Homepage docker proxy'
+sudo ufw reload
+```
+
+2. Verify rule is active:
+```bash
+sudo ufw status | grep 2376
+```
+
+3. Test again from HomeCore:
+```bash
+curl http://<remote-ip>:2376/containers/json
+```
+
 ## Log Analysis
 
 ### Finding Errors
@@ -497,6 +726,8 @@ docker compose logs --since="1h" 2>&1 | grep -i error
 | Home Assistant | `docker compose logs homeassistant` | `/srv/orion/homecore/homeassistant/config/home-assistant.log` |
 | Mosquitto | `docker compose logs mosquitto` | `/srv/orion/homecore/mosquitto/log/mosquitto.log` |
 | Zigbee2MQTT | `docker compose logs zigbee2mqtt` | `/srv/orion/homecore/zigbee2mqtt/data/log/` |
+| Homepage | `docker compose logs orion_home_homepage` | N/A (container logs only) |
+| Uptime Kuma | `docker compose logs uptime-kuma` | N/A (container logs only) |
 
 ## Getting Help
 
@@ -515,3 +746,6 @@ When asking for help, include:
 - [Home Assistant Community](https://community.home-assistant.io/)
 - [Zigbee2MQTT Documentation](https://www.zigbee2mqtt.io/)
 - [Docker Documentation](https://docs.docker.com/)
+- [Homepage Documentation](https://gethomepage.dev/)
+- [Uptime Kuma](https://github.com/louislam/uptime-kuma)
+

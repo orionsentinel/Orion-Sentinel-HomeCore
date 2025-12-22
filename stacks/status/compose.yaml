@@ -1,26 +1,28 @@
 # =============================================================================
-# ESPHome Stack
+# Status Stack (Uptime Kuma)
+# =============================================================================
+# Service uptime monitoring for all Orion nodes
+# Creates monitors and status pages for all services
 # =============================================================================
 
 services:
-  esphome:
-    image: ghcr.io/esphome/esphome:latest
-    container_name: esphome
+  uptime-kuma:
+    image: louislam/uptime-kuma:${KUMA_IMAGE_TAG:-1}
+    container_name: uptime-kuma
     restart: unless-stopped
     init: true
     stop_grace_period: 10s
     environment:
       - TZ=${TZ:-Europe/Amsterdam}
-      - ESPHOME_DASHBOARD_USE_PING=true
     volumes:
-      - ${DATA_ROOT}/esphome/config:/config
+      - ${DATA_ROOT}/uptime-kuma:/app/data
     ports:
-      - "${HOST_IP:-127.0.0.1}:${ESPHOME_PORT:-6052}:6052"
+      - "${HOST_IP:-127.0.0.1}:${KUMA_PORT:-3001}:3001"
     networks:
       - homecore_internal
       - homecore_lan
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6052/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3001/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -35,12 +37,12 @@ services:
         reservations:
           memory: "128M"
     profiles:
-      - esphome
+      - status
     labels:
       - homepage.group=HomeCore
-      - homepage.name=ESPHome
-      - homepage.icon=esphome
-      - homepage.href=http://${HOST_IP:-127.0.0.1}:${ESPHOME_PORT:-6052}
-      - homepage.description=ESP device management
-      - homepage.weight=5
+      - homepage.name=Uptime Kuma
+      - homepage.icon=uptime-kuma
+      - homepage.href=http://${HOST_IP:-127.0.0.1}:${KUMA_PORT:-3001}
+      - homepage.description=Service uptime monitoring
+      - homepage.weight=10
       - homepage.instance=homecore

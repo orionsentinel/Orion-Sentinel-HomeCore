@@ -36,3 +36,11 @@ services:
           memory: "256M"
     profiles:
       - nodered
+    labels:
+      - homepage.group=HomeCore
+      - homepage.name=Node-RED
+      - homepage.icon=nodered
+      - homepage.href=http://${HOST_IP:-127.0.0.1}:${NODERED_PORT:-1880}
+      - homepage.description=Flow-based automation
+      - homepage.weight=4
+      - homepage.instance=homecore

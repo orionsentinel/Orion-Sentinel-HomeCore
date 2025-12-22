@@ -18,11 +18,13 @@ The `orionctl` command is your primary interface for managing services.
 # Start services
 ./scripts/orionctl up              # Start core (Home Assistant)
 ./scripts/orionctl up homeauto     # Start home automation stack
+./scripts/orionctl up ui           # Start Homepage + Uptime Kuma
 ./scripts/orionctl up --profile mqtt --profile zigbee
 
 # Stop services
 ./scripts/orionctl down            # Stop all services
 ./scripts/orionctl down mqtt       # Stop specific stack
+./scripts/orionctl down portal     # Stop Homepage
 
 # View logs
 ./scripts/orionctl logs homeassistant
@@ -31,6 +33,7 @@ The `orionctl` command is your primary interface for managing services.
 
 # Restart services
 ./scripts/orionctl restart
+./scripts/orionctl restart portal  # Restart Homepage only
 
 # Validate configuration
 ./scripts/orionctl validate
@@ -238,6 +241,128 @@ docker compose logs --tail=100 homeassistant
 # Since specific time
 docker compose logs --since="1h" homeassistant
 ```
+
+## Homepage and Uptime Kuma Operations
+
+### Starting/Stopping
+
+```bash
+# Start both Homepage and Uptime Kuma
+./scripts/orionctl up ui
+
+# Start individually
+./scripts/orionctl up portal    # Homepage only
+./scripts/orionctl up status    # Uptime Kuma only
+
+# Stop
+./scripts/orionctl down portal
+./scripts/orionctl down status
+```
+
+### Restarting After Config Changes
+
+```bash
+# Restart Homepage to apply config changes
+./scripts/orionctl restart portal
+
+# Or with Docker Compose directly
+docker compose restart orion_home_homepage
+```
+
+### Updating Homepage Configuration
+
+**Settings:**
+```bash
+sudo nano ${DATA_ROOT}/homepage/settings.yaml
+./scripts/orionctl restart portal
+```
+
+**Services (manual links):**
+```bash
+sudo nano ${DATA_ROOT}/homepage/services.yaml
+./scripts/orionctl restart portal
+```
+
+**Widgets:**
+```bash
+sudo nano ${DATA_ROOT}/homepage/widgets.yaml
+./scripts/orionctl restart portal
+```
+
+**Docker endpoints (multi-node):**
+```bash
+sudo nano ${DATA_ROOT}/homepage/docker.yaml
+./scripts/orionctl restart portal
+```
+
+### Viewing Logs
+
+```bash
+# Homepage logs
+docker compose logs orion_home_homepage --tail=100 -f
+
+# Uptime Kuma logs
+docker compose logs uptime-kuma --tail=100 -f
+
+# Docker proxy logs
+docker compose logs orion_home_dockerproxy --tail=100 -f
+```
+
+### Troubleshooting Auto-Discovery
+
+If services don't appear in Homepage:
+
+1. **Check docker-socket-proxy is healthy:**
+```bash
+docker ps | grep dockerproxy
+docker inspect orion_home_dockerproxy | grep -i health
+```
+
+2. **Verify docker.yaml configuration:**
+```bash
+cat ${DATA_ROOT}/homepage/docker.yaml
+```
+
+3. **Check container labels:**
+```bash
+docker inspect <container-name> | grep -A 10 Labels
+```
+
+4. **Test Docker API access:**
+```bash
+# From inside Homepage container
+docker exec orion_home_homepage wget -q -O - http://orion_home_dockerproxy:2375/containers/json
+```
+
+5. **Check Homepage logs for errors:**
+```bash
+docker compose logs orion_home_homepage | grep -i error
+```
+
+### Multi-Node Discovery Issues
+
+For remote node discovery issues:
+
+1. **Test remote docker proxy connectivity:**
+```bash
+# From HomeCore
+curl http://<remote-node-ip>:2376/containers/json
+```
+
+2. **Check firewall on remote node:**
+```bash
+# On remote node
+sudo ufw status numbered
+ss -lntp | grep 2376
+```
+
+3. **Verify remote node docker proxy is running:**
+```bash
+# On remote node
+docker ps | grep dockerproxy
+```
+
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for more Homepage troubleshooting.
 
 ## Common Operations
 

@@ -88,3 +88,11 @@ services:
           memory: "128M"
     profiles:
       - portal
+    labels:
+      - homepage.group=HomeCore
+      - homepage.name=Homepage
+      - homepage.icon=homepage
+      - homepage.href=http://${HOST_IP:-127.0.0.1}:${HOMEPAGE_PORT:-3001}
+      - homepage.description=Unified dashboard
+      - homepage.weight=9
+      - homepage.instance=homecore
