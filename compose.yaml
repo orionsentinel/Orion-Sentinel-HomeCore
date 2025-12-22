@@ -21,6 +21,7 @@ include:
   - stacks/nodered/compose.yaml
   - stacks/esphome/compose.yaml
   - stacks/mealie/compose.yaml
+  - stacks/portal/compose.yaml
 
 networks:
   homecore_internal:

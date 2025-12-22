@@ -1,0 +1,29 @@
+# =============================================================================
+# Homepage Services
+# =============================================================================
+# Services are auto-discovered from Docker labels on HomeCore
+# DataAICore services must be added manually (different host)
+# =============================================================================
+
+# HomeCore Services (Auto-discovered)
+# These are placeholders - actual services will be discovered via Docker labels
+# Edit container labels in their respective compose files to customize
+
+---
+# DataAICore Services (Manual Links)
+# These run on the Optiplex and must be configured manually
+- DataAICore:
+    - Nextcloud:
+        icon: nextcloud
+        href: http://${DATAAICORE_IP:-192.168.1.10}:8080
+        description: Cloud storage and collaboration
+        
+    - SearXNG:
+        icon: searxng
+        href: http://${DATAAICORE_IP:-192.168.1.10}:8888
+        description: Privacy-respecting metasearch engine
+        
+    - Open WebUI:
+        icon: si-openai
+        href: http://${DATAAICORE_IP:-192.168.1.10}:3000
+        description: AI chat interface

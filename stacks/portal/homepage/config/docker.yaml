@@ -1,0 +1,11 @@
+# =============================================================================
+# Homepage Docker Integration
+# =============================================================================
+# Configure Docker auto-discovery using the socket proxy
+# =============================================================================
+
+---
+# Docker socket proxy configuration
+# Uses restricted proxy instead of direct socket mount for security
+orion_dockerproxy:
+  host: http://orion_home_dockerproxy:2375

@@ -1,0 +1,90 @@
+# =============================================================================
+# Portal Stack (Homepage Dashboard + Docker Socket Proxy)
+# =============================================================================
+# LAN-only dashboard with auto-discovery of HomeCore containers
+# Uses docker-socket-proxy for safer Docker API access
+# =============================================================================
+
+services:
+  # Docker Socket Proxy - Restricted Docker API endpoint
+  orion_home_dockerproxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: orion_home_dockerproxy
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 10s
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      # Allow only minimal endpoints needed by Homepage
+      - CONTAINERS=1
+      - SERVICES=1
+      - TASKS=1
+      - NODES=0
+      - SYSTEM=0
+      - IMAGES=1
+      - NETWORKS=1
+      - VOLUMES=0
+      - INFO=1
+      - EVENTS=1
+      - AUTH=0
+      - SECRETS=0
+      - CONFIGS=0
+      - POST=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - homecore_internal
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:2375/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          memory: "32M"
+    profiles:
+      - portal
+
+  # Homepage Dashboard
+  orion_home_homepage:
+    image: ghcr.io/gethomepage/homepage:${HOMEPAGE_IMAGE_TAG:-latest}
+    container_name: orion_home_homepage
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 10s
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT}/homepage:/app/config
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${HOMEPAGE_PORT:-3001}:3000"
+    networks:
+      - homecore_internal
+      - homecore_lan
+    depends_on:
+      orion_home_dockerproxy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          memory: "128M"
+    profiles:
+      - portal
