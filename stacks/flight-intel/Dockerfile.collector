@@ -1,0 +1,41 @@
+# =============================================================================
+# Dockerfile for Flight Intelligence Collector
+# =============================================================================
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for faster dependency installation
+RUN pip install --no-cache-dir uv
+
+# Copy dependency files
+COPY pyproject.toml ./
+
+# Install dependencies using uv
+RUN uv pip install --system --no-cache -e .
+
+# Copy application code
+COPY app/ ./app/
+COPY alembic/ ./alembic/
+COPY alembic.ini ./
+COPY scripts/collector_entrypoint.py ./
+
+# Create non-root user
+RUN useradd -m -u 1000 flightintel && \
+    chown -R flightintel:flightintel /app
+
+USER flightintel
+
+# Health check
+HEALTHCHECK --interval=60s --timeout=10s --retries=3 \
+    CMD pgrep -f collector || exit 1
+
+# Run collector with scheduling
+CMD ["python", "collector_entrypoint.py"]

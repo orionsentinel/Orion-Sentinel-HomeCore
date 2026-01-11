@@ -1,0 +1,23 @@
+# =============================================================================
+# Prometheus Configuration for Flight Intelligence
+# =============================================================================
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'flight-intel'
+    environment: 'homelab'
+
+# Scrape configurations
+scrape_configs:
+  # Flight Intelligence API metrics
+  - job_name: 'flight-api'
+    static_configs:
+      - targets: ['flight-api:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

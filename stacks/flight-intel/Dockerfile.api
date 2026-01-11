@@ -1,0 +1,44 @@
+# =============================================================================
+# Dockerfile for Flight Intelligence API
+# =============================================================================
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for faster dependency installation
+RUN pip install --no-cache-dir uv
+
+# Copy dependency files
+COPY pyproject.toml ./
+
+# Install dependencies using uv
+RUN uv pip install --system --no-cache -e .
+
+# Copy application code
+COPY app/ ./app/
+COPY alembic/ ./alembic/
+COPY alembic.ini ./
+
+# Create non-root user
+RUN useradd -m -u 1000 flightintel && \
+    chown -R flightintel:flightintel /app
+
+USER flightintel
+
+# Expose API port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Run migrations and start API
+CMD alembic upgrade head && \
+    uvicorn app.api.main:app --host 0.0.0.0 --port 8000
