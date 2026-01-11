@@ -1,0 +1,37 @@
+[Unit]
+Description=Flight Intelligence Service
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/%u/Orion-Sentinel-HomeCore/stacks/flight-intel
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Start service
+ExecStart=/usr/bin/docker compose --profile flight-intel up -d
+
+# Stop service
+ExecStop=/usr/bin/docker compose --profile flight-intel down
+
+# Reload service
+ExecReload=/usr/bin/docker compose --profile flight-intel restart
+
+# Restart policy
+Restart=on-failure
+RestartSec=10s
+
+# User and group
+User=%u
+Group=%u
+
+# Security
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/%u/Orion-Sentinel-HomeCore/stacks/flight-intel/data
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

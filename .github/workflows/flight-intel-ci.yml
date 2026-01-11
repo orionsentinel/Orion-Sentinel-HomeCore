@@ -1,0 +1,265 @@
+name: Flight Intelligence CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'stacks/flight-intel/**'
+      - '.github/workflows/flight-intel-ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'stacks/flight-intel/**'
+      - '.github/workflows/flight-intel-ci.yml'
+
+defaults:
+  run:
+    working-directory: stacks/flight-intel
+
+jobs:
+  lint-and-typecheck:
+    name: Lint and Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv
+          uv pip install --system -e ".[dev]"
+
+      - name: Run ruff linter
+        run: ruff check app/ tests/
+
+      - name: Run ruff formatter
+        run: ruff format --check app/ tests/
+
+      - name: Run mypy type checker
+        run: mypy app/
+        continue-on-error: true
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flightintel
+          POSTGRES_PASSWORD: flightintel
+          POSTGRES_DB: flightintel_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv
+          uv pip install --system -e ".[dev]"
+
+      - name: Run unit tests
+        env:
+          TEST_DATABASE_URL: postgresql://flightintel:flightintel@localhost:5432/flightintel_test
+        run: pytest tests/unit/ -v
+
+      - name: Run integration tests
+        env:
+          TEST_DATABASE_URL: postgresql://flightintel:flightintel@localhost:5432/flightintel_test
+        run: pytest tests/integration/ -v --tb=short
+        continue-on-error: true
+
+      - name: Generate coverage report
+        env:
+          TEST_DATABASE_URL: postgresql://flightintel:flightintel@localhost:5432/flightintel_test
+        run: pytest --cov=app --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./stacks/flight-intel/coverage.xml
+          flags: flight-intel
+          name: flight-intel-coverage
+        continue-on-error: true
+
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v5
+        with:
+          context: stacks/flight-intel
+          file: stacks/flight-intel/Dockerfile.api
+          push: false
+          tags: flight-intel-api:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build UI image
+        uses: docker/build-push-action@v5
+        with:
+          context: stacks/flight-intel
+          file: stacks/flight-intel/Dockerfile.ui
+          push: false
+          tags: flight-intel-ui:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build Collector image
+        uses: docker/build-push-action@v5
+        with:
+          context: stacks/flight-intel
+          file: stacks/flight-intel/Dockerfile.collector
+          push: false
+          tags: flight-intel-collector:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  integration:
+    name: Integration Test (Docker Compose)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy env.example to .env
+        run: cp .env.example .env
+
+      - name: Start services
+        run: docker compose --profile flight-intel up -d
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services to start..."
+          sleep 30
+
+          echo "Checking API health..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:8000/health; then
+              echo "API is healthy!"
+              break
+            fi
+            echo "Waiting for API... ($i/30)"
+            sleep 5
+          done
+
+      - name: Test API endpoints
+        run: |
+          echo "Testing /health endpoint..."
+          curl -f http://localhost:8000/health
+
+          echo "Testing /routes endpoint..."
+          curl -f http://localhost:8000/routes
+
+          echo "Testing /metrics endpoint..."
+          curl -f http://localhost:8000/metrics
+
+      - name: Check service logs
+        if: always()
+        run: docker compose --profile flight-intel logs
+
+      - name: Stop services
+        if: always()
+        run: docker compose --profile flight-intel down -v
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'stacks/flight-intel'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+        continue-on-error: true
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+  docs-check:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check required documentation files
+        run: |
+          docs=(
+            "README.md"
+            "docs/RUNBOOK.md"
+            "docs/DATA_MODEL.md"
+            "docs/PROVIDERS.md"
+            ".env.example"
+            "Makefile"
+          )
+
+          missing=()
+          for doc in "${docs[@]}"; do
+            if [ ! -f "$doc" ]; then
+              missing+=("$doc")
+            fi
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "❌ Missing documentation files:"
+            printf '%s\n' "${missing[@]}"
+            exit 1
+          fi
+
+          echo "✅ All required documentation files present"
+
+      - name: Validate docker-compose.yaml
+        run: docker compose --profile flight-intel config > /dev/null
+
+      - name: Check for TODOs
+        run: |
+          if grep -r "TODO" app/ | grep -v "Binary file"; then
+            echo "⚠️ Found TODO comments in code"
+            exit 0
+          else
+            echo "✅ No TODO comments found"
+          fi
