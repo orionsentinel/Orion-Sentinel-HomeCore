@@ -6,12 +6,23 @@ Orion-Sentinel-HomeCore provides a modular, Docker-based stack for running Home 
 
 ## Features
 
+### Home Automation
 - **Home Assistant** - Core home automation platform
 - **Mosquitto MQTT** - Message broker for IoT devices
 - **Zigbee2MQTT** - Bridge for Zigbee devices
 - **Node-RED** - Flow-based automation
 - **ESPHome** - ESP device management
 - **Mealie** - Recipe and meal planning
+
+### Flight Intelligence (NEW)
+- **Flight Price Tracker** - Monitor flights from NL/BE to Crete
+- **Price Intelligence** - Historical tracking and trend analysis
+- **Buy/Wait Recommendations** - AI-powered recommendations
+- **Web Dashboard** - Interactive Streamlit UI with heatmaps
+- **REST API** - Full-featured FastAPI backend
+- **LLM Assistant** - Optional AI flight assistant (Ollama)
+
+See [stacks/flight-intel/README.md](stacks/flight-intel/README.md) for details.
 
 ## Security First
 

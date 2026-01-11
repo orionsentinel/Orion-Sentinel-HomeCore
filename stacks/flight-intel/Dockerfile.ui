@@ -1,0 +1,40 @@
+# =============================================================================
+# Dockerfile for Flight Intelligence UI (Streamlit)
+# =============================================================================
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for faster dependency installation
+RUN pip install --no-cache-dir uv
+
+# Copy dependency files
+COPY pyproject.toml ./
+
+# Install dependencies using uv
+RUN uv pip install --system --no-cache -e .
+
+# Copy UI code
+COPY ui/ ./ui/
+
+# Create non-root user
+RUN useradd -m -u 1000 flightintel && \
+    chown -R flightintel:flightintel /app
+
+USER flightintel
+
+# Expose Streamlit port
+EXPOSE 8501
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+# Start Streamlit
+CMD ["streamlit", "run", "ui/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]

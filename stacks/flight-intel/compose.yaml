@@ -1,0 +1,344 @@
+# =============================================================================
+# Flight Intelligence Stack - Docker Compose Configuration
+# =============================================================================
+# Production-ready flight price intelligence system for homelab
+#
+# Usage:
+#   docker compose --profile flight-intel up -d           # Core services only
+#   docker compose --profile flight-intel --profile llm up -d     # With LLM agent
+#   docker compose --profile flight-intel --profile observability up -d  # With monitoring
+#
+# Services:
+#   - postgres: Database for price snapshots and recommendations
+#   - api: FastAPI backend
+#   - ui: Streamlit web interface
+#   - collector: Scheduled price collection worker
+#   - redis (optional): Caching layer
+#   - ollama (optional, profile: llm): Local LLM for agent
+#   - prometheus (optional, profile: observability): Metrics collection
+#   - grafana (optional, profile: observability): Metrics visualization
+#   - ntfy (optional, profile: alerts): Push notifications
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Database
+  # ---------------------------------------------------------------------------
+  flight-postgres:
+    image: postgres:16-alpine
+    container_name: flight-postgres
+    profiles: ["flight-intel"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-flightintel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flightintel}
+      POSTGRES_DB: ${POSTGRES_DB:-flightintel}
+    volumes:
+      - flight-postgres-data:/var/lib/postgresql/data
+    networks:
+      - flight-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-flightintel}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: ${POSTGRES_MEM_LIMIT:-1g}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # API Service
+  # ---------------------------------------------------------------------------
+  flight-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: flight-api
+    profiles: ["flight-intel"]
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-flightintel}:${POSTGRES_PASSWORD:-flightintel}@flight-postgres:5432/${POSTGRES_DB:-flightintel}
+      POSTGRES_HOST: flight-postgres
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    ports:
+      - "${HOST_IP:-127.0.0.1}:8000:8000"
+    depends_on:
+      flight-postgres:
+        condition: service_healthy
+    networks:
+      - flight-internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: ${API_MEM_LIMIT:-512m}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # UI Service (Streamlit)
+  # ---------------------------------------------------------------------------
+  flight-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    container_name: flight-ui
+    profiles: ["flight-intel"]
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      API_BASE_URL: http://flight-api:8000
+      STREAMLIT_SERVER_HEADLESS: "true"
+      STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
+    ports:
+      - "${HOST_IP:-127.0.0.1}:8501:8501"
+    depends_on:
+      - flight-api
+    networks:
+      - flight-internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: ${UI_MEM_LIMIT:-512m}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Collector Service (Scheduled worker)
+  # ---------------------------------------------------------------------------
+  flight-collector:
+    build:
+      context: .
+      dockerfile: Dockerfile.collector
+    container_name: flight-collector
+    profiles: ["flight-intel"]
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-flightintel}:${POSTGRES_PASSWORD:-flightintel}@flight-postgres:5432/${POSTGRES_DB:-flightintel}
+      POSTGRES_HOST: flight-postgres
+      COLLECTOR_ENABLED: ${COLLECTOR_ENABLED:-true}
+    depends_on:
+      flight-postgres:
+        condition: service_healthy
+    networks:
+      - flight-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f collector || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: ${COLLECTOR_MEM_LIMIT:-512m}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Redis (Optional - for caching)
+  # ---------------------------------------------------------------------------
+  flight-redis:
+    image: redis:7-alpine
+    container_name: flight-redis
+    profiles: ["flight-intel-cache"]
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - flight-redis-data:/data
+    networks:
+      - flight-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ---------------------------------------------------------------------------
+  # Ollama (Optional - for LLM agent)
+  # ---------------------------------------------------------------------------
+  flight-ollama:
+    image: ollama/ollama:latest
+    container_name: flight-ollama
+    profiles: ["llm"]
+    restart: unless-stopped
+    volumes:
+      - flight-ollama-data:/root/.ollama
+    networks:
+      - flight-internal
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Prometheus (Optional - for metrics)
+  # ---------------------------------------------------------------------------
+  flight-prometheus:
+    image: prom/prometheus:latest
+    container_name: flight-prometheus
+    profiles: ["observability"]
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - flight-prometheus-data:/prometheus
+    networks:
+      - flight-internal
+    ports:
+      - "${HOST_IP:-127.0.0.1}:9091:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Grafana (Optional - for visualization)
+  # ---------------------------------------------------------------------------
+  flight-grafana:
+    image: grafana/grafana:latest
+    container_name: flight-grafana
+    profiles: ["observability"]
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: ""
+    volumes:
+      - flight-grafana-data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - flight-internal
+    ports:
+      - "${HOST_IP:-127.0.0.1}:3000:3000"
+    depends_on:
+      - flight-prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ---------------------------------------------------------------------------
+  # ntfy (Optional - for push notifications)
+  # ---------------------------------------------------------------------------
+  flight-ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: flight-ntfy
+    profiles: ["alerts"]
+    restart: unless-stopped
+    command: serve
+    volumes:
+      - flight-ntfy-data:/var/lib/ntfy
+    networks:
+      - flight-internal
+    ports:
+      - "${HOST_IP:-127.0.0.1}:8080:80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  flight-internal:
+    name: flight-internal
+    driver: bridge
+    internal: false
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  flight-postgres-data:
+    name: flight-postgres-data
+  flight-redis-data:
+    name: flight-redis-data
+  flight-ollama-data:
+    name: flight-ollama-data
+  flight-prometheus-data:
+    name: flight-prometheus-data
+  flight-grafana-data:
+    name: flight-grafana-data
+  flight-ntfy-data:
+    name: flight-ntfy-data
