@@ -39,6 +39,8 @@ services:
       - "${JELLYFIN_HOST_IP:-${HOST_IP:-127.0.0.1}}:${JELLYFIN_PORT:-8096}:8096"
     networks:
       - jellyfin_lan
+      # Seerr, Sonarr and Radarr reach Jellyfin here (defined in the root compose.yaml)
+      - media_lan
     # Healthcheck is built into the image
     logging:
       driver: json-file

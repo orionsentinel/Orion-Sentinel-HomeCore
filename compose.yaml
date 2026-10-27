@@ -9,6 +9,7 @@
 #   docker compose --profile mqtt up -d            # Core + MQTT
 #   docker compose --profile mqtt --profile zigbee up -d  # Core + MQTT + Zigbee
 #   ./scripts/deploy-media.sh                      # Media profiles (Immich, Jellyfin, ...)
+#   ./scripts/deploy-media.sh --arr                # ... plus download automation
 #
 # Or use orionctl:
 #   ./scripts/orionctl up
@@ -26,6 +27,7 @@ include:
   - stacks/jellyfin/compose.yaml
   - stacks/navidrome/compose.yaml
   - stacks/audiobookshelf/compose.yaml
+  - stacks/arr/compose.yaml
 
 networks:
   homecore_internal:
@@ -34,5 +36,10 @@ networks:
     internal: false
   homecore_lan:
     name: homecore_lan
+    driver: bridge
+    internal: false
+  # Shared by Jellyfin and the *arr apps that talk to it (Seerr, Sonarr, Radarr)
+  media_lan:
+    name: media_lan
     driver: bridge
     internal: false

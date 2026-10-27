@@ -16,6 +16,7 @@ Orion-Sentinel-HomeCore provides a modular, Docker-based stack for running Home 
 - **Jellyfin** - Movie and TV streaming
 - **Navidrome** - Music streaming (Subsonic apps)
 - **Audiobookshelf** - Audiobooks and podcasts
+- **\*arr stack** (opt-in) - Sonarr, Radarr, Prowlarr, Bazarr, qBittorrent, Seerr
 
 ## Security First
 
@@ -92,6 +93,7 @@ For LAN access, edit `.env` and change `HOST_IP=127.0.0.1` to your machine's IP.
 | Jellyfin | http://localhost:8096 | jellyfin |
 | Navidrome | http://localhost:4533 | navidrome |
 | Audiobookshelf | http://localhost:13378 | audiobookshelf |
+| Seerr / Sonarr / Radarr / Prowlarr / Bazarr / qBittorrent | http://localhost:5055 / 8989 / 7878 / 9696 / 6767 / 5080 | arr |
 
 **For LAN Access**: Set `HOST_IP` in `.env` to your machine's IP (e.g., `192.168.1.100`). See [SECURITY.md](SECURITY.md) for details.
 
@@ -128,7 +130,8 @@ Orion-Sentinel-HomeCore/
 │   ├── immich/              # Immich photo backup stack
 │   ├── jellyfin/            # Jellyfin media server stack
 │   ├── navidrome/           # Navidrome music server stack
-│   └── audiobookshelf/      # Audiobookshelf stack
+│   ├── audiobookshelf/      # Audiobookshelf stack
+│   └── arr/                 # Download automation stack (opt-in)
 └── systemd/
     └── homecore.service     # Systemd service file
 ```

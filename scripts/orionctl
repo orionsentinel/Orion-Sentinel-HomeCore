@@ -89,6 +89,7 @@ show_help() {
     echo "  jellyfin         Jellyfin media server"
     echo "  navidrome        Navidrome music server"
     echo "  audiobookshelf   Audiobookshelf audiobooks and podcasts"
+    echo "  arr              qBittorrent, Prowlarr, Sonarr, Radarr, Bazarr, Seerr"
     echo ""
     echo "Bundles (shortcuts):"
     echo "  core             Home Assistant (default)"
@@ -96,7 +97,7 @@ show_help() {
     echo "  apps             Mealie"
     echo "  media            Immich + Jellyfin + Navidrome + Audiobookshelf"
     echo "                   (first time: ./scripts/deploy-media.sh)"
-    echo "  all              All services except media"
+    echo "  all              All services except media and arr"
     echo ""
     echo "Examples:"
     echo "  orionctl up                    # Start Home Assistant"
@@ -144,6 +145,9 @@ get_profiles_for_bundle() {
             ;;
         audiobookshelf)
             PROFILE_ARGS=(--profile audiobookshelf)
+            ;;
+        arr)
+            PROFILE_ARGS=(--profile arr)
             ;;
         media)
             PROFILE_ARGS=(--profile immich --profile jellyfin --profile navidrome --profile audiobookshelf)
@@ -253,7 +257,8 @@ cmd_logs() {
         log_error "Please specify a service name"
         echo "Available services: homeassistant, mosquitto, zigbee2mqtt, nodered, esphome, mealie, mealie-db,"
         echo "                    immich-server, immich-machine-learning, immich-database, immich-redis, jellyfin,"
-        echo "                    navidrome, audiobookshelf"
+        echo "                    navidrome, audiobookshelf, qbittorrent, prowlarr, sonarr,"
+        echo "                    radarr, bazarr, seerr, arr-diskguard"
         exit 1
     fi
     

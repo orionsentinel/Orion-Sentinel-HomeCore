@@ -195,6 +195,15 @@ if [ -d "${DATA_ROOT}/audiobookshelf/config" ]; then
     log_success "Audiobookshelf backed up"
 fi
 
+# Backup the *arr apps' config and databases (cover-art caches are rebuildable)
+if [ -d "${DATA_ROOT}/arr" ]; then
+    log_info "Backing up download automation config..."
+    tar -czf "${BACKUP_PATH}/arr_config.tar.gz" \
+        --exclude="*/MediaCover" --exclude="*/logs" --exclude="*/cache" \
+        -C "${DATA_ROOT}" arr
+    log_success "Download automation config backed up"
+fi
+
 # Backup .env file (contains configuration)
 if [ -f "${REPO_ROOT}/.env" ]; then
     log_info "Backing up .env configuration..."
@@ -246,6 +255,7 @@ echo "  - Mealie database and data (if available)"
 echo "  - Immich database (if running - NOT the photo library)"
 echo "  - Jellyfin configuration (if present)"
 echo "  - Navidrome and Audiobookshelf databases (if present)"
+echo "  - Sonarr, Radarr, Prowlarr, Bazarr, Seerr, qBittorrent config (if present)"
 echo "  - .env configuration file"
 echo ""
 echo -e "${YELLOW}To restore from this backup:${NC}"

@@ -11,6 +11,8 @@ Four optional profiles that replace photo, streaming, music and audiobook subscr
 
 Jellyfin and Navidrome only stream files you have. They do not replace a streaming catalogue.
 
+Opt-in on top: the **\*arr download stack** (Sonarr, Radarr, Prowlarr, Bazarr, qBittorrent, Seerr). See [Download automation](#download-automation-arr-opt-in).
+
 ## Read first: Pi 5 constraints
 
 1. **Immich is not a backup.** Once phones upload to it and you free up phone or iCloud space, the Pi's drive holds the **only copy** of your photos. Set up the off-device copy in [Backups](#backups) before you delete anything from a phone.
@@ -157,6 +159,50 @@ Add this to the Homepage `services.yaml`:
         description: Audiobooks & podcasts
 ```
 
+## Download automation (\*arr, opt-in)
+
+```bash
+./scripts/deploy-media.sh --arr --tailscale
+```
+
+| App | Does | Tailscale |
+|-----|------|-----------|
+| Seerr | Request page: the family asks for a film or series | `:22443` |
+| Sonarr / Radarr | Watch for TV episodes / films, send them to qBittorrent, rename and file them | `:24443` / `:26443` |
+| Prowlarr | Manages indexers and syncs them to Sonarr and Radarr | `:28443` |
+| Bazarr | Fetches subtitles for what's in the library | `:30443` |
+| qBittorrent | Downloads | `:32443` |
+
+**Prowlarr starts with no indexers.** Which sources you add is your decision. In the Netherlands, downloading from unlicensed sources is not allowed (CJEU *ACI Adam*, 2014), and torrenting also uploads while it downloads.
+
+**Layout.** Every app that moves files sees `MEDIA_ROOT` as `/data`. qBittorrent downloads to `/data/Downloads`, and Sonarr/Radarr import into `/data/TV` and `/data/Movies`. Because that's one filesystem and one mount, imports are instant hardlinks, not copies, and a seeding torrent costs no extra space. Inside the apps, always use `/data/...` paths.
+
+**Disk guard.** `arr-diskguard` stops every torrent when the library drive has less than `ARR_MIN_FREE_GB` (default 100GB) free. That drive also holds the photo library, so downloads can't fill it. Torrents stay stopped until you free space and start them in qBittorrent. Check it with `./scripts/orionctl logs arr-diskguard`.
+
+### Wiring, in this order
+
+API keys are under **Settings → General** in Sonarr, Radarr and Prowlarr. Between apps, use the container names below, never `localhost`.
+
+1. **qBittorrent:** log in as `admin` with `QBT_PASSWORD` from `.env`. The download paths and the disabled UPnP are already seeded. Under **Options → BitTorrent → Seeding limits**, set a ratio and choose *Stop torrent* when it's reached.
+2. **Sonarr:** create the login it asks for. Then:
+   - **Media Management:** set the root folder to `/data/TV`. Leave *Use hardlinks* on.
+   - **Download Clients → qBittorrent:** host `qbittorrent`, port `5080`, user `admin`, password `QBT_PASSWORD`, category `tv-sonarr`.
+   - **Connect → Emby / Jellyfin:** host `jellyfin`, port `8096`, with an API key from Jellyfin's **Dashboard → API Keys**. Jellyfin then refreshes after each import.
+3. **Radarr:** same as Sonarr, with root folder `/data/Movies` and category `radarr`.
+4. **Prowlarr:** create the login and add indexers. Then under **Settings → Apps**, add:
+   - **Sonarr:** Prowlarr server `http://prowlarr:9696`, Sonarr server `http://sonarr:8989`, plus Sonarr's API key.
+   - **Radarr:** server `http://radarr:7878`, plus Radarr's API key.
+5. **Bazarr:** it has **no login by default**. Turn one on under **Settings → General → Security** first. Then:
+   - Add Sonarr (`sonarr:8989`) and Radarr (`radarr:7878`) with their API keys.
+   - Add a free OpenSubtitles.com account under **Providers**, and set your **Languages**.
+6. **Seerr:** sign in with Jellyfin at `http://jellyfin:8096`. Then:
+   - Under **Services**, add Radarr (`radarr`, 7878, root `/data/Movies`) and Sonarr (`sonarr`, 8989, root `/data/TV`).
+   - Import the Jellyfin users, and give adults auto-approve. Kids' requests then wait for approval.
+
+**Memory.** About 700MB idle in total, measured in testing: Bazarr and Seerr ~175MB each; Sonarr, Radarr and Prowlarr ~100MB each; qBittorrent grows with active torrents. With every profile running, the media services use roughly 2.5GB idle on top of what the Pi already runs, and Immich adds ~3GB while importing. So run the first big photo import before you queue lots of downloads.
+
+**Peers.** The BitTorrent port (`QBT_TORRENT_PORT`, 6881 TCP/UDP) is published on all interfaces, because peers need to reach it. Without a router port-forward, downloads still work, just with fewer peers.
+
 ## Backups
 
 | Data | Covered by | Notes |
@@ -165,6 +211,7 @@ Add this to the Homepage `services.yaml`:
 | Jellyfin config | `./scripts/orionctl backup` | Metadata images excluded (re-downloadable) |
 | Navidrome database | `./scripts/orionctl backup` | Users, playlists, favourites, play counts |
 | Audiobookshelf database | `./scripts/orionctl backup` | Users and listening progress; Audiobookshelf also keeps its own backups in `metadata/backups` |
+| \*arr config | `./scripts/orionctl backup` | Sonarr, Radarr, Prowlarr, Bazarr, Seerr and qBittorrent settings and databases; cover-art caches excluded |
 | **Photos and videos** | **Nothing yet: you must add this** | The only copy once phones are cleaned up |
 | Movies, TV, music, audiobooks | Optional | Usually replaceable if you still have the originals |
 
@@ -186,6 +233,7 @@ Schedule it with a systemd timer. Test a restore once before you rely on it.
 - **Immich:** read the release notes first, because breaking changes ship in minor versions. Set `IMMICH_VERSION` in `.env` and re-run `./scripts/deploy-media.sh`. If the release's `docker-compose.yml` changes the database or Valkey image digest, update `stacks/immich/compose.yaml` to match.
 - **Jellyfin:** back up first (`./scripts/orionctl backup`), because database migrations cannot be rolled back. Then set `JELLYFIN_VERSION` and re-run the script.
 - **Navidrome, Audiobookshelf:** back up, bump `NAVIDROME_VERSION` / `AUDIOBOOKSHELF_VERSION`, re-run the script.
+- **\*arr apps:** back up, bump the `*_VERSION` you want, re-run `./scripts/deploy-media.sh --arr`.
 
 ## Troubleshooting
 
@@ -198,6 +246,10 @@ Schedule it with a systemd timer. Test a restore once before you rely on it.
 | Jellyfin or Navidrome library shows nothing | Files not readable by `PUID` | `sudo chmod -R a+rX "$MEDIA_ROOT"` |
 | Navidrome lists tracks as "Unknown Artist" | Missing or messy tags | Tag the files (MusicBrainz Picard), then rescan |
 | Audiobookshelf can't download podcast episodes | `Podcasts/` existed before deploy and isn't writable by `PUID` | `sudo chown -R "$PUID:$PGID" "$MEDIA_ROOT/Podcasts"` |
+| All torrents stopped by themselves | Disk guard: library drive under `ARR_MIN_FREE_GB` free | Free space (seeded torrents, old downloads), then start them in qBittorrent |
+| Disk guard logs "rejected the login" | `QBT_PASSWORD` doesn't match qBittorrent's WebUI password | Put the WebUI password in `.env`, re-run the deploy script |
+| Sonarr/Radarr import copies instead of hardlinking, or can't find the download | A path outside `/data` was used somewhere | Use `/data/...` in every app; categories must save under `/data/Downloads` |
+| qBittorrent WebUI says "Unauthorized" through Tailscale | CSRF check behind the proxy | Open it via the exact tailnet URL, or untick **Options → WebUI → Enable CSRF protection** |
 | Remote playback buffers | CPU transcode | Raise the client bitrate limit; re-encode the file to H.264/HEVC |
 | `--check` says the drive resolves to the OS disk | External drive not mounted | Mount it (check `/etc/fstab`), then re-run |
 | Deploy warns that Docker cannot enforce memory limits | Memory cgroup disabled at boot | Append `cgroup_enable=memory` to the single line in `/boot/firmware/cmdline.txt`, then reboot |

@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Orion-Sentinel-HomeCore Media Deploy (Immich, Jellyfin, Navidrome, Audiobookshelf)
+# Orion-Sentinel-HomeCore Media Deploy (Immich, Jellyfin, Navidrome, Audiobookshelf, *arr)
 # =============================================================================
 # Idempotent deploy of the media profiles, built for a
 # Raspberry Pi 5 that already runs other services. Safe to re-run: it only adds
@@ -9,7 +9,7 @@
 #
 # Usage:
 #   ./scripts/deploy-media.sh [--check] [--no-immich] [--no-jellyfin] [--no-navidrome]
-#                             [--no-audiobookshelf] [--no-ml] [--tailscale]
+#                             [--no-audiobookshelf] [--no-ml] [--arr] [--tailscale]
 # =============================================================================
 
 set -euo pipefail
@@ -29,7 +29,7 @@ ENV_FILE="${REPO_ROOT}/.env"
 ENV_EXAMPLE="${REPO_ROOT}/env/.env.example"
 
 # Keys this script owns in .env (copied from env/.env.example when missing)
-MEDIA_KEYS_RE='^(IMMICH_[A-Z_]+|JELLYFIN_[A-Z_]+|NAVIDROME_[A-Z_]+|AUDIOBOOKSHELF_[A-Z_]+|MEDIA_ROOT)='
+MEDIA_KEYS_RE='^(IMMICH_[A-Z_]+|JELLYFIN_[A-Z_]+|NAVIDROME_[A-Z_]+|AUDIOBOOKSHELF_[A-Z_]+|QBT_[A-Z_]+|ARR_[A-Z_]+|SONARR_[A-Z_]+|RADARR_[A-Z_]+|PROWLARR_[A-Z_]+|BAZARR_[A-Z_]+|SEERR_[A-Z_]+|MEDIA_ROOT)='
 
 # -----------------------------------------------------------------------------
 # Helper Functions
@@ -71,6 +71,8 @@ show_help() {
     echo "  --no-audiobookshelf"
     echo "                  Skip Audiobookshelf"
     echo "  --no-ml         Run Immich without machine learning (faces, smart search)"
+    echo "  --arr           Also deploy download automation: qBittorrent, Prowlarr,"
+    echo "                  Sonarr, Radarr, Bazarr, Seerr and the disk guard"
     echo "  --tailscale     Expose each service over HTTPS on this host's tailnet name"
     echo "  -h, --help      Show this help message"
     echo ""
@@ -88,12 +90,22 @@ as_root() {
 }
 
 # Letters and digits only - Immich rejects anything else in DB_PASSWORD
-generate_db_password() {
+generate_password() {
     if command -v openssl &> /dev/null; then
         openssl rand -hex 24
     else
         head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n'
     fi
+}
+
+# qBittorrent's WebUI password format: PBKDF2-HMAC-SHA512, 100000 rounds,
+# 16-byte salt. Password comes in via the environment, not argv.
+qbt_password_hash() {
+    QBT_PW="$1" python3 -c '
+import base64, hashlib, os
+salt = os.urandom(16)
+key = hashlib.pbkdf2_hmac("sha512", os.environ["QBT_PW"].encode(), salt, 100000, 64)
+print("@ByteArray(%s:%s)" % (base64.b64encode(salt).decode(), base64.b64encode(key).decode()))'
 }
 
 # Safe value replacement using awk to avoid regex issues. Rewrites the file in
@@ -238,6 +250,7 @@ WITH_JELLYFIN=true
 WITH_NAVIDROME=true
 WITH_AUDIOBOOKSHELF=true
 WITH_ML=true
+WITH_ARR=false
 WITH_TAILSCALE=false
 
 while [[ $# -gt 0 ]]; do
@@ -248,6 +261,7 @@ while [[ $# -gt 0 ]]; do
         --no-navidrome) WITH_NAVIDROME=false ;;
         --no-audiobookshelf) WITH_AUDIOBOOKSHELF=false ;;
         --no-ml) WITH_ML=false ;;
+        --arr) WITH_ARR=true ;;
         --tailscale) WITH_TAILSCALE=true ;;
         -h|--help)
             show_help
@@ -264,14 +278,16 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ "$WITH_IMMICH" = false ] && [ "$WITH_JELLYFIN" = false ] \
-    && [ "$WITH_NAVIDROME" = false ] && [ "$WITH_AUDIOBOOKSHELF" = false ]; then
+    && [ "$WITH_NAVIDROME" = false ] && [ "$WITH_AUDIOBOOKSHELF" = false ] \
+    && [ "$WITH_ARR" = false ]; then
     log_error "Nothing to deploy: every service was skipped"
     exit 1
 fi
 
-# Jellyfin, Navidrome and Audiobookshelf all read from MEDIA_ROOT
+# Jellyfin, Navidrome, Audiobookshelf and the *arr apps all use MEDIA_ROOT
 WITH_LIBRARY=false
-if [ "$WITH_JELLYFIN" = true ] || [ "$WITH_NAVIDROME" = true ] || [ "$WITH_AUDIOBOOKSHELF" = true ]; then
+if [ "$WITH_JELLYFIN" = true ] || [ "$WITH_NAVIDROME" = true ] || [ "$WITH_AUDIOBOOKSHELF" = true ] \
+    || [ "$WITH_ARR" = true ]; then
     WITH_LIBRARY=true
 fi
 
@@ -330,6 +346,15 @@ JELLYFIN_PORT="${JELLYFIN_PORT:-8096}"
 JELLYFIN_HOST_IP="${JELLYFIN_HOST_IP:-$HOST_IP}"
 NAVIDROME_PORT="${NAVIDROME_PORT:-4533}"
 AUDIOBOOKSHELF_PORT="${AUDIOBOOKSHELF_PORT:-13378}"
+QBT_PORT="${QBT_PORT:-5080}"
+QBT_USERNAME="${QBT_USERNAME:-admin}"
+PROWLARR_PORT="${PROWLARR_PORT:-9696}"
+SONARR_PORT="${SONARR_PORT:-8989}"
+RADARR_PORT="${RADARR_PORT:-7878}"
+BAZARR_PORT="${BAZARR_PORT:-6767}"
+SEERR_PORT="${SEERR_PORT:-5055}"
+ARR_MIN_FREE_GB="${ARR_MIN_FREE_GB:-100}"
+QBT_CONF="${DATA_ROOT}/arr/qbittorrent/qBittorrent/qBittorrent.conf"
 IMMICH_DB_DIR="${DATA_ROOT}/immich/postgres"
 
 # Generate the database password once; refuse if a database already exists without one
@@ -340,12 +365,28 @@ if [ "$WITH_IMMICH" = true ]; then
         elif [ "$CHECK_ONLY" = true ]; then
             log_info "Would generate IMMICH_DB_PASSWORD"
         else
-            replace_value "IMMICH_DB_PASSWORD" "$(generate_db_password)" "$ENV_FILE"
+            replace_value "IMMICH_DB_PASSWORD" "$(generate_password)" "$ENV_FILE"
             load_env "$ENV_FILE"
             log_success "Generated IMMICH_DB_PASSWORD"
         fi
     elif [[ ! "$IMMICH_DB_PASSWORD" =~ ^[A-Za-z0-9]+$ ]]; then
         fail "IMMICH_DB_PASSWORD may only contain letters and digits"
+    fi
+fi
+
+# qBittorrent's WebUI password is generated once and seeded into a fresh
+# config; the disk guard logs in with it to stop torrents
+if [ "$WITH_ARR" = true ]; then
+    if [ -z "${QBT_PASSWORD:-}" ] || [ "$QBT_PASSWORD" = "changeme" ]; then
+        if [ -f "$QBT_CONF" ]; then
+            log_warn "qBittorrent is already configured: put its WebUI password in QBT_PASSWORD, or the disk guard cannot stop torrents"
+        elif [ "$CHECK_ONLY" = true ]; then
+            log_info "Would generate QBT_PASSWORD"
+        else
+            replace_value "QBT_PASSWORD" "$(generate_password)" "$ENV_FILE"
+            load_env "$ENV_FILE"
+            log_success "Generated QBT_PASSWORD (qBittorrent WebUI user: ${QBT_USERNAME})"
+        fi
     fi
 fi
 
@@ -416,8 +457,22 @@ fi
 if [ "$WITH_AUDIOBOOKSHELF" = true ]; then
     check_storage "Audiobookshelf database" "${DATA_ROOT}/audiobookshelf" db
 fi
+if [ "$WITH_ARR" = true ]; then
+    check_storage "Download apps' config" "${DATA_ROOT}/arr" db
+fi
 if [ "$WITH_LIBRARY" = true ]; then
     check_storage "Media library" "${MEDIA_ROOT:-/srv/orion/media/library}" media
+fi
+if [ "$WITH_ARR" = true ]; then
+    library_free_gb="$(df -BG --output=avail "$(existing_ancestor "${MEDIA_ROOT:-/srv/orion/media/library}")" | tail -n 1 | tr -dc '0-9')"
+    if [ "$library_free_gb" -lt "$ARR_MIN_FREE_GB" ]; then
+        log_warn "Only ${library_free_gb}GB free on the library drive, under ARR_MIN_FREE_GB=${ARR_MIN_FREE_GB}: the disk guard will stop every download"
+    else
+        log_info "Disk guard: downloads stop when the library drive drops under ${ARR_MIN_FREE_GB}GB free (${library_free_gb}GB now)"
+    fi
+    if [ ! -f "$QBT_CONF" ] && ! command -v python3 &> /dev/null; then
+        log_warn "python3 not found: qBittorrent will start with a random password printed in its log instead of QBT_PASSWORD"
+    fi
 fi
 
 if [ "$DOCKER_OK" = true ]; then
@@ -425,6 +480,15 @@ if [ "$DOCKER_OK" = true ]; then
     [ "$WITH_JELLYFIN" = true ] && check_port "Jellyfin" "$JELLYFIN_PORT" jellyfin
     [ "$WITH_NAVIDROME" = true ] && check_port "Navidrome" "$NAVIDROME_PORT" navidrome
     [ "$WITH_AUDIOBOOKSHELF" = true ] && check_port "Audiobookshelf" "$AUDIOBOOKSHELF_PORT" audiobookshelf
+    if [ "$WITH_ARR" = true ]; then
+        check_port "qBittorrent" "$QBT_PORT" qbittorrent
+        check_port "qBittorrent peers" "${QBT_TORRENT_PORT:-6881}" qbittorrent
+        check_port "Prowlarr" "$PROWLARR_PORT" prowlarr
+        check_port "Sonarr" "$SONARR_PORT" sonarr
+        check_port "Radarr" "$RADARR_PORT" radarr
+        check_port "Bazarr" "$BAZARR_PORT" bazarr
+        check_port "Seerr" "$SEERR_PORT" seerr
+    fi
 fi
 
 if [ "$WITH_TAILSCALE" = true ]; then
@@ -476,6 +540,10 @@ if [ "$WITH_AUDIOBOOKSHELF" = true ]; then
     OWNED_DIRS+=(audiobookshelf/config audiobookshelf/metadata)
     LIBRARY_DIRS+=(Audiobooks Podcasts)
 fi
+if [ "$WITH_ARR" = true ]; then
+    OWNED_DIRS+=(arr/qbittorrent arr/prowlarr arr/sonarr arr/radarr arr/bazarr arr/seerr)
+    LIBRARY_DIRS+=(Movies TV Downloads)
+fi
 for dir in "${OWNED_DIRS[@]}"; do
     ensure_dir "${DATA_ROOT}/${dir}"
     ensure_owner "${DATA_ROOT}/${dir}" "${PUID}:${PGID}"
@@ -488,6 +556,37 @@ if [ "$WITH_LIBRARY" = true ]; then
     for sub in "${LIBRARY_DIRS[@]}"; do
         ensure_dir "${MEDIA_ROOT}/${sub}" "${PUID}:${PGID}"
     done
+fi
+
+# A fresh qBittorrent gets QBT_PASSWORD and hardlink-friendly download paths
+# (under /data, the same mount Sonarr and Radarr import into). An existing
+# config is never touched.
+if [ "$WITH_ARR" = true ] && [ ! -f "$QBT_CONF" ] && command -v python3 &> /dev/null; then
+    ensure_dir "$(dirname "$QBT_CONF")"
+    as_root tee "$QBT_CONF" > /dev/null <<EOF
+[AutoRun]
+enabled=false
+program=
+
+[LegalNotice]
+Accepted=true
+
+[BitTorrent]
+Session\DefaultSavePath=/data/Downloads/complete/
+Session\TempPath=/data/Downloads/incomplete/
+Session\TempPathEnabled=true
+
+[Preferences]
+Connection\UPnP=false
+WebUI\Address=*
+WebUI\ServerDomains=*
+WebUI\HostHeaderValidation=false
+WebUI\Username=${QBT_USERNAME}
+WebUI\Password_PBKDF2="$(qbt_password_hash "$QBT_PASSWORD")"
+EOF
+    as_root chmod 600 "$QBT_CONF"
+    as_root chown -R "${PUID}:${PGID}" "${DATA_ROOT}/arr/qbittorrent"
+    log_success "Seeded qBittorrent config (user ${QBT_USERNAME}, password QBT_PASSWORD in .env)"
 fi
 
 # -----------------------------------------------------------------------------
@@ -520,6 +619,11 @@ if [ "$WITH_AUDIOBOOKSHELF" = true ]; then
     PROFILE_ARGS+=(--profile audiobookshelf)
     SERVICES+=(audiobookshelf)
     CONTAINERS+=(audiobookshelf)
+fi
+if [ "$WITH_ARR" = true ]; then
+    PROFILE_ARGS+=(--profile arr)
+    SERVICES+=(qbittorrent prowlarr sonarr radarr bazarr seerr arr-diskguard)
+    CONTAINERS+=(qbittorrent prowlarr sonarr radarr bazarr seerr arr-diskguard)
 fi
 
 cd "$REPO_ROOT"
@@ -613,6 +717,14 @@ if [ "$WITH_TAILSCALE" = true ]; then
     [ "$WITH_JELLYFIN" = true ] && ts_serve "Jellyfin" "${JELLYFIN_TAILSCALE_PORT:-16443}" "$JELLYFIN_PORT" "$JELLYFIN_HOST_IP"
     [ "$WITH_NAVIDROME" = true ] && ts_serve "Navidrome" "${NAVIDROME_TAILSCALE_PORT:-18443}" "$NAVIDROME_PORT" "$HOST_IP"
     [ "$WITH_AUDIOBOOKSHELF" = true ] && ts_serve "Audiobookshelf" "${AUDIOBOOKSHELF_TAILSCALE_PORT:-20443}" "$AUDIOBOOKSHELF_PORT" "$HOST_IP"
+    if [ "$WITH_ARR" = true ]; then
+        ts_serve "Seerr" "${SEERR_TAILSCALE_PORT:-22443}" "$SEERR_PORT" "$HOST_IP"
+        ts_serve "Sonarr" "${SONARR_TAILSCALE_PORT:-24443}" "$SONARR_PORT" "$HOST_IP"
+        ts_serve "Radarr" "${RADARR_TAILSCALE_PORT:-26443}" "$RADARR_PORT" "$HOST_IP"
+        ts_serve "Prowlarr" "${PROWLARR_TAILSCALE_PORT:-28443}" "$PROWLARR_PORT" "$HOST_IP"
+        ts_serve "Bazarr" "${BAZARR_TAILSCALE_PORT:-30443}" "$BAZARR_PORT" "$HOST_IP"
+        ts_serve "qBittorrent" "${QBT_TAILSCALE_PORT:-32443}" "$QBT_PORT" "$HOST_IP"
+    fi
 fi
 
 # -----------------------------------------------------------------------------
@@ -630,21 +742,30 @@ else
     echo -e "${YELLOW}============================================${NC}"
 fi
 echo ""
-if [ "$WITH_IMMICH" = true ]; then
-    echo "Immich:    $(local_url "$HOST_IP" "$IMMICH_PORT")"
-    [ -n "$TS_HOST" ] && echo "           https://${TS_HOST}:${IMMICH_TAILSCALE_PORT:-14443}"
-fi
-if [ "$WITH_JELLYFIN" = true ]; then
-    echo "Jellyfin:  $(local_url "$JELLYFIN_HOST_IP" "$JELLYFIN_PORT")"
-    [ -n "$TS_HOST" ] && echo "           https://${TS_HOST}:${JELLYFIN_TAILSCALE_PORT:-16443}"
-fi
-if [ "$WITH_NAVIDROME" = true ]; then
-    echo "Navidrome: $(local_url "$HOST_IP" "$NAVIDROME_PORT")"
-    [ -n "$TS_HOST" ] && echo "           https://${TS_HOST}:${NAVIDROME_TAILSCALE_PORT:-18443}"
-fi
-if [ "$WITH_AUDIOBOOKSHELF" = true ]; then
-    echo "Audiobookshelf: $(local_url "$HOST_IP" "$AUDIOBOOKSHELF_PORT")"
-    [ -n "$TS_HOST" ] && echo "           https://${TS_HOST}:${AUDIOBOOKSHELF_TAILSCALE_PORT:-20443}"
+
+show_url() {
+    local label="$1"
+    local ip="$2"
+    local port="$3"
+    local ts_port="$4"
+
+    printf '%-16s %s\n' "${label}:" "$(local_url "$ip" "$port")"
+    if [ -n "$TS_HOST" ]; then
+        printf '%-16s %s\n' "" "https://${TS_HOST}:${ts_port}"
+    fi
+}
+
+[ "$WITH_IMMICH" = true ] && show_url "Immich" "$HOST_IP" "$IMMICH_PORT" "${IMMICH_TAILSCALE_PORT:-14443}"
+[ "$WITH_JELLYFIN" = true ] && show_url "Jellyfin" "$JELLYFIN_HOST_IP" "$JELLYFIN_PORT" "${JELLYFIN_TAILSCALE_PORT:-16443}"
+[ "$WITH_NAVIDROME" = true ] && show_url "Navidrome" "$HOST_IP" "$NAVIDROME_PORT" "${NAVIDROME_TAILSCALE_PORT:-18443}"
+[ "$WITH_AUDIOBOOKSHELF" = true ] && show_url "Audiobookshelf" "$HOST_IP" "$AUDIOBOOKSHELF_PORT" "${AUDIOBOOKSHELF_TAILSCALE_PORT:-20443}"
+if [ "$WITH_ARR" = true ]; then
+    show_url "Seerr" "$HOST_IP" "$SEERR_PORT" "${SEERR_TAILSCALE_PORT:-22443}"
+    show_url "Sonarr" "$HOST_IP" "$SONARR_PORT" "${SONARR_TAILSCALE_PORT:-24443}"
+    show_url "Radarr" "$HOST_IP" "$RADARR_PORT" "${RADARR_TAILSCALE_PORT:-26443}"
+    show_url "Prowlarr" "$HOST_IP" "$PROWLARR_PORT" "${PROWLARR_TAILSCALE_PORT:-28443}"
+    show_url "Bazarr" "$HOST_IP" "$BAZARR_PORT" "${BAZARR_TAILSCALE_PORT:-30443}"
+    show_url "qBittorrent" "$HOST_IP" "$QBT_PORT" "${QBT_TAILSCALE_PORT:-32443}"
 fi
 echo ""
 echo -e "${YELLOW}Next Steps (details in MEDIA.md):${NC}"
@@ -667,6 +788,11 @@ fi
 if [ "$WITH_AUDIOBOOKSHELF" = true ]; then
     echo "- Audiobookshelf: create the root user, then add libraries /audiobooks"
     echo "  (Books) and /podcasts (Podcasts). Phone: the Audiobookshelf app."
+fi
+if [ "$WITH_ARR" = true ]; then
+    echo "- *arr: wire the apps together in the order in MEDIA.md (\"Download"
+    echo "  automation\"). qBittorrent login: ${QBT_USERNAME} / QBT_PASSWORD in .env."
+    echo "  Sonarr, Radarr and Prowlarr ask you to create a login on first visit."
 fi
 echo ""
 
