@@ -1,0 +1,57 @@
+# =============================================================================
+# Audiobookshelf Stack (Audiobooks and Podcasts)
+# =============================================================================
+# Self-hosted replacement for Audible / podcast apps: streams your audiobooks
+# and downloads podcast episodes, with progress synced across devices.
+#
+# Storage:
+#   ${MEDIA_ROOT}/Audiobooks                Audiobooks, mounted read-only
+#   ${MEDIA_ROOT}/Podcasts                  Podcast episodes (Audiobookshelf downloads them)
+#   ${DATA_ROOT}/audiobookshelf/config      Database (users, listening progress)
+#   ${DATA_ROOT}/audiobookshelf/metadata    Covers, cache, Audiobookshelf's own backups
+#
+# Audiobooks are read-only, so "store metadata with item" and embedding tags
+# into files are unavailable; everything else works from /metadata.
+#
+# Deploy: ./scripts/deploy-media.sh
+# =============================================================================
+
+services:
+  audiobookshelf:
+    image: ghcr.io/advplyr/audiobookshelf:${AUDIOBOOKSHELF_VERSION:-2.37.2}
+    container_name: audiobookshelf
+    restart: unless-stopped
+    stop_grace_period: 10s
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT}/audiobookshelf/config:/config
+      - ${DATA_ROOT}/audiobookshelf/metadata:/metadata
+      - ${MEDIA_ROOT:-/srv/orion/media/library}/Audiobooks:/audiobooks:ro
+      - ${MEDIA_ROOT:-/srv/orion/media/library}/Podcasts:/podcasts
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${AUDIOBOOKSHELF_PORT:-13378}:80"
+    networks:
+      - audiobookshelf_lan
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:80/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          memory: "128M"
+    profiles:
+      - audiobookshelf
+
+networks:
+  audiobookshelf_lan:
+    name: audiobookshelf_lan

@@ -1,0 +1,62 @@
+# =============================================================================
+# Jellyfin Stack (Media Server)
+# =============================================================================
+# Self-hosted replacement for Plex / streaming-service libraries.
+#
+# Raspberry Pi 5 constraints:
+#   - No hardware video encoder, so there is no /dev/dri passthrough here and
+#     hardware acceleration stays "None". Transcoding is CPU-only: expect about
+#     one 1080p stream. Keep the library in formats clients can direct-play.
+#   - Raspberry Pi OS ships a 16K-page kernel on the Pi 5. If this container
+#     restart-loops, switch to the 4K-page kernel (see MEDIA.md).
+#
+# Storage:
+#   ${MEDIA_ROOT}                  Movies/TV/Music, mounted read-only
+#   ${DATA_ROOT}/jellyfin/config   Database, settings, metadata
+#   ${DATA_ROOT}/jellyfin/cache    Transcode and image cache
+#
+# Deploy: ./scripts/deploy-media.sh (creates the directories with the right
+# owner first - Docker would otherwise create them as root and Jellyfin, which
+# runs as PUID:PGID, could not write to them)
+# =============================================================================
+
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:${JELLYFIN_VERSION:-12.4}
+    container_name: jellyfin
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT}/jellyfin/config:/config
+      - ${DATA_ROOT}/jellyfin/cache:/cache
+      - ${MEDIA_ROOT:-/srv/orion/media/library}:/media:ro
+    ports:
+      # JELLYFIN_HOST_IP lets TVs on the LAN connect while other services stay on loopback
+      - "${JELLYFIN_HOST_IP:-${HOST_IP:-127.0.0.1}}:${JELLYFIN_PORT:-8096}:8096"
+    networks:
+      - jellyfin_lan
+      # Seerr, Sonarr and Radarr reach Jellyfin here (defined in the root compose.yaml)
+      - media_lan
+    # Healthcheck is built into the image
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          memory: "256M"
+        # Software transcodes and library scans can spike; cap them
+        limits:
+          memory: "${JELLYFIN_MEM_LIMIT:-2G}"
+    profiles:
+      - jellyfin
+
+networks:
+  jellyfin_lan:
+    name: jellyfin_lan

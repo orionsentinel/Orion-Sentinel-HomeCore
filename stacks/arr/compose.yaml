@@ -1,0 +1,245 @@
+# =============================================================================
+# *arr Stack (Download Automation)
+# =============================================================================
+# Sonarr (TV), Radarr (movies), Prowlarr (indexers), Bazarr (subtitles),
+# qBittorrent (downloads) and Seerr (requests), plus a disk guard.
+#
+# Prowlarr starts with no indexers: which sources you add is your decision.
+# In the Netherlands, downloading from unlicensed sources is not allowed
+# (CJEU ACI Adam, 2014), and torrenting also uploads while it downloads.
+#
+# Layout - one /data mount everywhere, so imports are instant hardlinks
+# instead of copies that would double the disk usage:
+#   ${MEDIA_ROOT}                    /data in every container that moves files
+#   ${MEDIA_ROOT}/Downloads          qBittorrent (complete/, incomplete/)
+#   ${MEDIA_ROOT}/Movies, TV         Radarr / Sonarr root folders (Jellyfin reads these)
+#   ${DATA_ROOT}/arr/<service>       Each service's config and database
+#
+# Disk guard: stops every torrent when free space on the library drive falls
+# below ARR_MIN_FREE_GB, so downloads cannot fill the drive that also holds
+# the photo library. Torrents stay stopped until you start them again.
+#
+# Deploy: ./scripts/deploy-media.sh --arr
+# =============================================================================
+
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:${QBT_VERSION:-5.3.0}
+    container_name: qbittorrent
+    restart: unless-stopped
+    # Time to write resume data on shutdown
+    stop_grace_period: 30s
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Amsterdam}
+      # Must be the same inside and out, or qBittorrent's CSRF check rejects the WebUI
+      - WEBUI_PORT=${QBT_PORT:-5080}
+      - TORRENTING_PORT=${QBT_TORRENT_PORT:-6881}
+    volumes:
+      - ${DATA_ROOT}/arr/qbittorrent:/config
+      - ${MEDIA_ROOT:-/srv/orion/media/library}:/data
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${QBT_PORT:-5080}:${QBT_PORT:-5080}"
+      # Peer connections: the BitTorrent port is meant to be reachable
+      - "${QBT_TORRENT_PORT:-6881}:${QBT_TORRENT_PORT:-6881}"
+      - "${QBT_TORRENT_PORT:-6881}:${QBT_TORRENT_PORT:-6881}/udp"
+    networks:
+      - arr_lan
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:${QBT_PORT:-5080}/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - arr
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:${PROWLARR_VERSION:-2.6.5}
+    container_name: prowlarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT}/arr/prowlarr:/config
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${PROWLARR_PORT:-9696}:9696"
+    networks:
+      - arr_lan
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:9696/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - arr
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:${SONARR_VERSION:-4.0.20}
+    container_name: sonarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT}/arr/sonarr:/config
+      - ${MEDIA_ROOT:-/srv/orion/media/library}:/data
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${SONARR_PORT:-8989}:8989"
+    networks:
+      - arr_lan
+      # Reaches Jellyfin to trigger a library refresh after each import
+      - media_lan
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8989/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - arr
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:${RADARR_VERSION:-6.4.4}
+    container_name: radarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT}/arr/radarr:/config
+      - ${MEDIA_ROOT:-/srv/orion/media/library}:/data
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${RADARR_PORT:-7878}:7878"
+    networks:
+      - arr_lan
+      - media_lan
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:7878/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - arr
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:${BAZARR_VERSION:-1.6.2}
+    container_name: bazarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - ${DATA_ROOT}/arr/bazarr:/config
+      # Writes .srt files next to the videos
+      - ${MEDIA_ROOT:-/srv/orion/media/library}:/data
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${BAZARR_PORT:-6767}:6767"
+    networks:
+      - arr_lan
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:6767/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - arr
+
+  # Request page: family members ask for a film or series, Seerr hands it to
+  # Radarr/Sonarr. Signs in with Jellyfin accounts.
+  seerr:
+    image: ghcr.io/seerr-team/seerr:${SEERR_VERSION:-v3.5.1}
+    container_name: seerr
+    restart: unless-stopped
+    init: true
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - LOG_LEVEL=info
+    volumes:
+      - ${DATA_ROOT}/arr/seerr:/app/config
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${SEERR_PORT:-5055}:5055"
+    networks:
+      - arr_lan
+      # Reaches Jellyfin for sign-in and library availability
+      - media_lan
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:5055/api/v1/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - arr
+
+  arr-diskguard:
+    image: curlimages/curl:8.23.0
+    container_name: arr-diskguard
+    restart: unless-stopped
+    # A shell as PID 1 ignores SIGTERM; tini forwards it so stop is instant
+    init: true
+    entrypoint: ["/bin/sh", "/diskguard.sh"]
+    environment:
+      - QBT_URL=http://qbittorrent:${QBT_PORT:-5080}
+      - QBT_USERNAME=${QBT_USERNAME:-admin}
+      - QBT_PASSWORD=${QBT_PASSWORD:-}
+      - ARR_MIN_FREE_GB=${ARR_MIN_FREE_GB:-100}
+    volumes:
+      - ./diskguard.sh:/diskguard.sh:ro
+      # Read-only: only needs to measure free space
+      - ${MEDIA_ROOT:-/srv/orion/media/library}:/data:ro
+    networks:
+      - arr_lan
+    depends_on:
+      - qbittorrent
+    logging:
+      driver: json-file
+      options:
+        max-size: "1m"
+        max-file: "2"
+    profiles:
+      - arr
+
+networks:
+  arr_lan:
+    name: arr_lan
