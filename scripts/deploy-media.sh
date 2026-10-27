@@ -382,7 +382,7 @@ fi
 
 PAGE_SIZE="$(getconf PAGESIZE)"
 if [ "$WITH_JELLYFIN" = true ] && [ "$PAGE_SIZE" != "4096" ]; then
-    log_warn "Kernel page size is ${PAGE_SIZE}; Jellyfin may restart-loop on it. Checked after start."
+    log_warn "Kernel page size is ${PAGE_SIZE}; Jellyfin is expected to restart-loop on it (exit 133). Checked after start."
 fi
 
 if [ "$WITH_IMMICH" = true ]; then
