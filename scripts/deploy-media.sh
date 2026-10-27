@@ -373,8 +373,10 @@ log_info "Memory: ${mem_avail_mb}MB available of ${mem_total_mb}MB"
 if [ "$WITH_IMMICH" = true ] && [ "$WITH_ML" = true ]; then
     if [ "$mem_total_mb" -lt 4000 ]; then
         fail "Immich machine learning needs more than 4GB RAM - re-run with --no-ml"
-    elif [ "$mem_avail_mb" -lt 3000 ]; then
-        log_warn "Under 3GB available: keep IMMICH_ML_MEM_LIMIT capped and set Immich job concurrency to 1 (MEDIA.md)"
+    elif [ "$mem_avail_mb" -lt 4500 ]; then
+        # Measured: ML peaks ~3GB with all models loaded, server + Postgres ~1.2GB
+        log_warn "Under 4.5GB available and Immich peaks near 4GB during imports: run big imports overnight,"
+        log_warn "set job concurrency to 1, or turn off OCR (MEDIA.md)"
     fi
 fi
 

@@ -85,9 +85,11 @@ services:
         max-file: "3"
     deploy:
       resources:
-        # Hard cap so a large first-time index cannot OOM the whole host
+        # Hard cap so a runaway cannot OOM the whole host. Measured peak with
+        # CLIP + face + OCR models loaded at once is ~3GB; 2G gets OOM-killed.
+        # Models unload after 5 minutes idle.
         limits:
-          memory: "${IMMICH_ML_MEM_LIMIT:-2G}"
+          memory: "${IMMICH_ML_MEM_LIMIT:-4G}"
     profiles:
       - immich
 
