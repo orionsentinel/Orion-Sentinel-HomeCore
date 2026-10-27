@@ -8,6 +8,7 @@
 #   docker compose up -d                           # Core only (Home Assistant)
 #   docker compose --profile mqtt up -d            # Core + MQTT
 #   docker compose --profile mqtt --profile zigbee up -d  # Core + MQTT + Zigbee
+#   ./scripts/deploy-media.sh                      # Immich + Jellyfin (media profiles)
 #
 # Or use orionctl:
 #   ./scripts/orionctl up
@@ -21,6 +22,8 @@ include:
   - stacks/nodered/compose.yaml
   - stacks/esphome/compose.yaml
   - stacks/mealie/compose.yaml
+  - stacks/immich/compose.yaml
+  - stacks/jellyfin/compose.yaml
 
 networks:
   homecore_internal:

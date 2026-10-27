@@ -12,6 +12,8 @@ Orion-Sentinel-HomeCore provides a modular, Docker-based stack for running Home 
 - **Node-RED** - Flow-based automation
 - **ESPHome** - ESP device management
 - **Mealie** - Recipe and meal planning
+- **Immich** - Photo and video backup (Google Photos / iCloud replacement)
+- **Jellyfin** - Movie, TV and music streaming
 
 ## Security First
 
@@ -84,6 +86,8 @@ For LAN access, edit `.env` and change `HOST_IP=127.0.0.1` to your machine's IP.
 | Node-RED | http://localhost:1880 | nodered |
 | ESPHome | http://localhost:6052 | esphome |
 | Mealie | http://localhost:9000 | mealie |
+| Immich | http://localhost:2283 | immich |
+| Jellyfin | http://localhost:8096 | jellyfin |
 
 **For LAN Access**: Set `HOST_IP` in `.env` to your machine's IP (e.g., `192.168.1.100`). See [SECURITY.md](SECURITY.md) for details.
 
@@ -95,6 +99,7 @@ For LAN access, edit `.env` and change `HOST_IP=127.0.0.1` to your machine's IP.
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues and solutions
 - [SECURITY.md](SECURITY.md) - Security policies and best practices
 - [MIGRATION.md](MIGRATION.md) - Migration guide
+- [MEDIA.md](MEDIA.md) - Immich (photos) and Jellyfin (movies/TV) on a Pi 5
 
 ## Directory Structure
 
@@ -106,6 +111,7 @@ Orion-Sentinel-HomeCore/
 │   └── profiles.example      # Profile documentation
 ├── scripts/
 │   ├── bootstrap-homecore.sh # Bootstrap script
+│   ├── deploy-media.sh      # Immich + Jellyfin deploy
 │   ├── orionctl             # Operator CLI
 │   └── doctor.sh            # Health checks
 ├── stacks/
@@ -114,7 +120,9 @@ Orion-Sentinel-HomeCore/
 │   ├── zigbee/              # Zigbee2MQTT stack
 │   ├── nodered/             # Node-RED stack
 │   ├── esphome/             # ESPHome stack
-│   └── mealie/              # Mealie stack
+│   ├── mealie/              # Mealie stack
+│   ├── immich/              # Immich photo backup stack
+│   └── jellyfin/            # Jellyfin media server stack
 └── systemd/
     └── homecore.service     # Systemd service file
 ```

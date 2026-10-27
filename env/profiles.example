@@ -48,6 +48,22 @@
 # Port: 9000
 # Use when: You want a recipe/meal planning application
 
+# immich
+# ------
+# Enables: Immich photo/video backup + Postgres + Valkey + machine learning
+# Port: 2283
+# Use when: You want a self-hosted Google Photos / iCloud Photos
+# Required env: IMMICH_UPLOAD_LOCATION, IMMICH_DB_PASSWORD
+# Note: Needs ~6GB RAM free for a smooth experience. Deploy with ./scripts/deploy-media.sh
+
+# jellyfin
+# --------
+# Enables: Jellyfin media server
+# Port: 8096
+# Use when: You want to stream your own movies/TV/music
+# Required env: MEDIA_ROOT
+# Note: CPU-only transcoding on a Pi 5. Deploy with ./scripts/deploy-media.sh
+
 # ha-hostnet
 # ----------
 # Enables: Home Assistant in host network mode
@@ -69,6 +85,10 @@
 # Smart Home Complete:
 # Everything including Mealie for recipes
 # COMPOSE_PROFILES=mqtt,zigbee,nodered,esphome,mealie
+
+# Media (photos + movies):
+# Usually started alongside whatever else runs, via ./scripts/deploy-media.sh
+# COMPOSE_PROFILES=immich,jellyfin
 
 # Discovery Mode:
 # Enable host networking for device discovery

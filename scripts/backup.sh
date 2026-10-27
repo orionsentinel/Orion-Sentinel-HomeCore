@@ -155,6 +155,28 @@ elif [ -d "${DATA_ROOT}/mealie" ]; then
         -C "${DATA_ROOT}/mealie" data 2>/dev/null || true
 fi
 
+# Backup Immich database (if running). The photo library itself is too large
+# for this archive - it needs its own off-device copy (see MEDIA.md).
+if docker ps --format '{{.Names}}' | grep -q "^immich_postgres$"; then
+    log_info "Backing up Immich database..."
+    # pipefail so a failed dump aborts instead of leaving an empty .gz behind
+    (
+        set -o pipefail
+        docker exec immich_postgres pg_dumpall --clean --if-exists \
+            --username="${IMMICH_DB_USERNAME:-postgres}" | gzip > "${BACKUP_PATH}/immich_db.sql.gz"
+    )
+    log_success "Immich database backed up (library not included)"
+fi
+
+# Backup Jellyfin configuration (metadata images are re-downloadable)
+if [ -d "${DATA_ROOT}/jellyfin/config" ]; then
+    log_info "Backing up Jellyfin configuration..."
+    tar -czf "${BACKUP_PATH}/jellyfin_config.tar.gz" \
+        --exclude="config/metadata" \
+        -C "${DATA_ROOT}/jellyfin" config
+    log_success "Jellyfin configuration backed up"
+fi
+
 # Backup .env file (contains configuration)
 if [ -f "${REPO_ROOT}/.env" ]; then
     log_info "Backing up .env configuration..."
@@ -203,6 +225,8 @@ echo "  - Zigbee2MQTT configuration"
 echo "  - Node-RED flows"
 echo "  - ESPHome configurations"
 echo "  - Mealie database and data (if available)"
+echo "  - Immich database (if running - NOT the photo library)"
+echo "  - Jellyfin configuration (if present)"
 echo "  - .env configuration file"
 echo ""
 echo -e "${YELLOW}To restore from this backup:${NC}"
