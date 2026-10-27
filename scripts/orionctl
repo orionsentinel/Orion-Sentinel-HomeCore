@@ -87,12 +87,15 @@ show_help() {
     echo "  mealie           Mealie recipe manager"
     echo "  immich           Immich photo backup"
     echo "  jellyfin         Jellyfin media server"
+    echo "  navidrome        Navidrome music server"
+    echo "  audiobookshelf   Audiobookshelf audiobooks and podcasts"
     echo ""
     echo "Bundles (shortcuts):"
     echo "  core             Home Assistant (default)"
     echo "  homeauto         Home Assistant + MQTT + Zigbee + Node-RED"
     echo "  apps             Mealie"
-    echo "  media            Immich + Jellyfin (first time: ./scripts/deploy-media.sh)"
+    echo "  media            Immich + Jellyfin + Navidrome + Audiobookshelf"
+    echo "                   (first time: ./scripts/deploy-media.sh)"
     echo "  all              All services except media"
     echo ""
     echo "Examples:"
@@ -136,8 +139,14 @@ get_profiles_for_bundle() {
         jellyfin)
             PROFILE_ARGS=(--profile jellyfin)
             ;;
+        navidrome)
+            PROFILE_ARGS=(--profile navidrome)
+            ;;
+        audiobookshelf)
+            PROFILE_ARGS=(--profile audiobookshelf)
+            ;;
         media)
-            PROFILE_ARGS=(--profile immich --profile jellyfin)
+            PROFILE_ARGS=(--profile immich --profile jellyfin --profile navidrome --profile audiobookshelf)
             ;;
         homeauto)
             PROFILE_ARGS=(--profile mqtt --profile zigbee --profile nodered)
@@ -243,7 +252,8 @@ cmd_logs() {
     if [ -z "$service" ]; then
         log_error "Please specify a service name"
         echo "Available services: homeassistant, mosquitto, zigbee2mqtt, nodered, esphome, mealie, mealie-db,"
-        echo "                    immich-server, immich-machine-learning, immich-database, immich-redis, jellyfin"
+        echo "                    immich-server, immich-machine-learning, immich-database, immich-redis, jellyfin,"
+        echo "                    navidrome, audiobookshelf"
         exit 1
     fi
     

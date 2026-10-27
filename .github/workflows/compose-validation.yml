@@ -30,7 +30,7 @@ jobs:
       
       - name: Validate with all profiles
         run: |
-          docker compose --profile mqtt --profile zigbee --profile nodered --profile esphome --profile mealie --profile immich --profile jellyfin config > /dev/null
+          docker compose --profile mqtt --profile zigbee --profile nodered --profile esphome --profile mealie --profile immich --profile jellyfin --profile navidrome --profile audiobookshelf config > /dev/null
       
       - name: Check for unused services
         run: |

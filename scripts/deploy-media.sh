@@ -1,14 +1,15 @@
 #!/bin/bash
 # =============================================================================
-# Orion-Sentinel-HomeCore Media Deploy (Immich + Jellyfin)
+# Orion-Sentinel-HomeCore Media Deploy (Immich, Jellyfin, Navidrome, Audiobookshelf)
 # =============================================================================
-# Idempotent deploy of the immich and jellyfin profiles, built for a
+# Idempotent deploy of the media profiles, built for a
 # Raspberry Pi 5 that already runs other services. Safe to re-run: it only adds
 # missing .env keys, never overwrites data, and only starts the media
 # containers (Home Assistant and other stacks are left untouched).
 #
 # Usage:
-#   ./scripts/deploy-media.sh [--check] [--no-immich] [--no-jellyfin] [--no-ml] [--tailscale]
+#   ./scripts/deploy-media.sh [--check] [--no-immich] [--no-jellyfin] [--no-navidrome]
+#                             [--no-audiobookshelf] [--no-ml] [--tailscale]
 # =============================================================================
 
 set -euo pipefail
@@ -28,7 +29,7 @@ ENV_FILE="${REPO_ROOT}/.env"
 ENV_EXAMPLE="${REPO_ROOT}/env/.env.example"
 
 # Keys this script owns in .env (copied from env/.env.example when missing)
-MEDIA_KEYS_RE='^(IMMICH_[A-Z_]+|JELLYFIN_[A-Z_]+|MEDIA_ROOT)='
+MEDIA_KEYS_RE='^(IMMICH_[A-Z_]+|JELLYFIN_[A-Z_]+|NAVIDROME_[A-Z_]+|AUDIOBOOKSHELF_[A-Z_]+|MEDIA_ROOT)='
 
 # -----------------------------------------------------------------------------
 # Helper Functions
@@ -57,7 +58,8 @@ fail() {
 }
 
 show_help() {
-    echo -e "${CYAN}Deploy Immich (photos) and Jellyfin (media) on this host${NC}"
+    echo -e "${CYAN}Deploy Immich (photos), Jellyfin (video), Navidrome (music) and${NC}"
+    echo -e "${CYAN}Audiobookshelf (audiobooks, podcasts) on this host${NC}"
     echo ""
     echo "Usage: deploy-media.sh [options]"
     echo ""
@@ -65,8 +67,11 @@ show_help() {
     echo "  --check         Run preflight checks only, change nothing"
     echo "  --no-immich     Skip Immich"
     echo "  --no-jellyfin   Skip Jellyfin"
+    echo "  --no-navidrome  Skip Navidrome"
+    echo "  --no-audiobookshelf"
+    echo "                  Skip Audiobookshelf"
     echo "  --no-ml         Run Immich without machine learning (faces, smart search)"
-    echo "  --tailscale     Expose both over HTTPS on this host's tailnet name"
+    echo "  --tailscale     Expose each service over HTTPS on this host's tailnet name"
     echo "  -h, --help      Show this help message"
     echo ""
     echo "Paths, ports and versions come from .env (see the Media section of"
@@ -230,6 +235,8 @@ local_url() {
 CHECK_ONLY=false
 WITH_IMMICH=true
 WITH_JELLYFIN=true
+WITH_NAVIDROME=true
+WITH_AUDIOBOOKSHELF=true
 WITH_ML=true
 WITH_TAILSCALE=false
 
@@ -238,6 +245,8 @@ while [[ $# -gt 0 ]]; do
         --check) CHECK_ONLY=true ;;
         --no-immich) WITH_IMMICH=false ;;
         --no-jellyfin) WITH_JELLYFIN=false ;;
+        --no-navidrome) WITH_NAVIDROME=false ;;
+        --no-audiobookshelf) WITH_AUDIOBOOKSHELF=false ;;
         --no-ml) WITH_ML=false ;;
         --tailscale) WITH_TAILSCALE=true ;;
         -h|--help)
@@ -254,13 +263,20 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-if [ "$WITH_IMMICH" = false ] && [ "$WITH_JELLYFIN" = false ]; then
-    log_error "Nothing to deploy: both --no-immich and --no-jellyfin given"
+if [ "$WITH_IMMICH" = false ] && [ "$WITH_JELLYFIN" = false ] \
+    && [ "$WITH_NAVIDROME" = false ] && [ "$WITH_AUDIOBOOKSHELF" = false ]; then
+    log_error "Nothing to deploy: every service was skipped"
     exit 1
 fi
 
+# Jellyfin, Navidrome and Audiobookshelf all read from MEDIA_ROOT
+WITH_LIBRARY=false
+if [ "$WITH_JELLYFIN" = true ] || [ "$WITH_NAVIDROME" = true ] || [ "$WITH_AUDIOBOOKSHELF" = true ]; then
+    WITH_LIBRARY=true
+fi
+
 echo -e "${CYAN}============================================${NC}"
-echo -e "${CYAN}  HomeCore Media Deploy (Immich + Jellyfin) ${NC}"
+echo -e "${CYAN}  HomeCore Media Deploy                     ${NC}"
 echo -e "${CYAN}============================================${NC}"
 echo ""
 
@@ -312,6 +328,8 @@ PGID="${PGID:-1000}"
 IMMICH_PORT="${IMMICH_PORT:-2283}"
 JELLYFIN_PORT="${JELLYFIN_PORT:-8096}"
 JELLYFIN_HOST_IP="${JELLYFIN_HOST_IP:-$HOST_IP}"
+NAVIDROME_PORT="${NAVIDROME_PORT:-4533}"
+AUDIOBOOKSHELF_PORT="${AUDIOBOOKSHELF_PORT:-13378}"
 IMMICH_DB_DIR="${DATA_ROOT}/immich/postgres"
 
 # Generate the database password once; refuse if a database already exists without one
@@ -391,12 +409,22 @@ if [ "$WITH_IMMICH" = true ]; then
 fi
 if [ "$WITH_JELLYFIN" = true ]; then
     check_storage "Jellyfin config" "${DATA_ROOT}/jellyfin" db
-    check_storage "Jellyfin library" "${MEDIA_ROOT:-/srv/orion/media/library}" media
+fi
+if [ "$WITH_NAVIDROME" = true ]; then
+    check_storage "Navidrome database" "${DATA_ROOT}/navidrome" db
+fi
+if [ "$WITH_AUDIOBOOKSHELF" = true ]; then
+    check_storage "Audiobookshelf database" "${DATA_ROOT}/audiobookshelf" db
+fi
+if [ "$WITH_LIBRARY" = true ]; then
+    check_storage "Media library" "${MEDIA_ROOT:-/srv/orion/media/library}" media
 fi
 
 if [ "$DOCKER_OK" = true ]; then
     [ "$WITH_IMMICH" = true ] && check_port "Immich" "$IMMICH_PORT" immich_server
     [ "$WITH_JELLYFIN" = true ] && check_port "Jellyfin" "$JELLYFIN_PORT" jellyfin
+    [ "$WITH_NAVIDROME" = true ] && check_port "Navidrome" "$NAVIDROME_PORT" navidrome
+    [ "$WITH_AUDIOBOOKSHELF" = true ] && check_port "Audiobookshelf" "$AUDIOBOOKSHELF_PORT" audiobookshelf
 fi
 
 if [ "$WITH_TAILSCALE" = true ]; then
@@ -432,19 +460,34 @@ if [ "$WITH_IMMICH" = true ]; then
     ensure_dir "$IMMICH_UPLOAD_LOCATION"
 fi
 
+# Service state directories must exist with the right owner before first
+# start, or Docker creates them as root and the container (PUID:PGID) cannot write
+OWNED_DIRS=()
+LIBRARY_DIRS=()
 if [ "$WITH_JELLYFIN" = true ]; then
-    # Must exist with the right owner before first start, or Docker creates them as root
-    for dir in config cache; do
-        ensure_dir "${DATA_ROOT}/jellyfin/${dir}"
-        ensure_owner "${DATA_ROOT}/jellyfin/${dir}" "${PUID}:${PGID}"
+    OWNED_DIRS+=(jellyfin/config jellyfin/cache)
+    LIBRARY_DIRS+=(Movies TV Music)
+fi
+if [ "$WITH_NAVIDROME" = true ]; then
+    OWNED_DIRS+=(navidrome/data)
+    LIBRARY_DIRS+=(Music)
+fi
+if [ "$WITH_AUDIOBOOKSHELF" = true ]; then
+    OWNED_DIRS+=(audiobookshelf/config audiobookshelf/metadata)
+    LIBRARY_DIRS+=(Audiobooks Podcasts)
+fi
+for dir in "${OWNED_DIRS[@]}"; do
+    ensure_dir "${DATA_ROOT}/${dir}"
+    ensure_owner "${DATA_ROOT}/${dir}" "${PUID}:${PGID}"
+done
+
+# Missing library folders are created empty and owned by PUID:PGID so you can
+# add files; existing folders and everything in them are never touched
+if [ "$WITH_LIBRARY" = true ]; then
+    ensure_dir "$MEDIA_ROOT" "${PUID}:${PGID}"
+    for sub in "${LIBRARY_DIRS[@]}"; do
+        ensure_dir "${MEDIA_ROOT}/${sub}" "${PUID}:${PGID}"
     done
-    # A fresh library gets the standard layout; an existing one is never modified
-    if [ ! -d "$MEDIA_ROOT" ]; then
-        for sub in Movies TV Music; do
-            ensure_dir "${MEDIA_ROOT}/${sub}"
-        done
-        as_root chown -R "${PUID}:${PGID}" "$MEDIA_ROOT"
-    fi
 fi
 
 # -----------------------------------------------------------------------------
@@ -467,6 +510,16 @@ if [ "$WITH_JELLYFIN" = true ]; then
     PROFILE_ARGS+=(--profile jellyfin)
     SERVICES+=(jellyfin)
     CONTAINERS+=(jellyfin)
+fi
+if [ "$WITH_NAVIDROME" = true ]; then
+    PROFILE_ARGS+=(--profile navidrome)
+    SERVICES+=(navidrome)
+    CONTAINERS+=(navidrome)
+fi
+if [ "$WITH_AUDIOBOOKSHELF" = true ]; then
+    PROFILE_ARGS+=(--profile audiobookshelf)
+    SERVICES+=(audiobookshelf)
+    CONTAINERS+=(audiobookshelf)
 fi
 
 cd "$REPO_ROOT"
@@ -558,6 +611,8 @@ if [ "$WITH_TAILSCALE" = true ]; then
 
     [ "$WITH_IMMICH" = true ] && ts_serve "Immich" "${IMMICH_TAILSCALE_PORT:-14443}" "$IMMICH_PORT" "$HOST_IP"
     [ "$WITH_JELLYFIN" = true ] && ts_serve "Jellyfin" "${JELLYFIN_TAILSCALE_PORT:-16443}" "$JELLYFIN_PORT" "$JELLYFIN_HOST_IP"
+    [ "$WITH_NAVIDROME" = true ] && ts_serve "Navidrome" "${NAVIDROME_TAILSCALE_PORT:-18443}" "$NAVIDROME_PORT" "$HOST_IP"
+    [ "$WITH_AUDIOBOOKSHELF" = true ] && ts_serve "Audiobookshelf" "${AUDIOBOOKSHELF_TAILSCALE_PORT:-20443}" "$AUDIOBOOKSHELF_PORT" "$HOST_IP"
 fi
 
 # -----------------------------------------------------------------------------
@@ -583,6 +638,14 @@ if [ "$WITH_JELLYFIN" = true ]; then
     echo "Jellyfin:  $(local_url "$JELLYFIN_HOST_IP" "$JELLYFIN_PORT")"
     [ -n "$TS_HOST" ] && echo "           https://${TS_HOST}:${JELLYFIN_TAILSCALE_PORT:-16443}"
 fi
+if [ "$WITH_NAVIDROME" = true ]; then
+    echo "Navidrome: $(local_url "$HOST_IP" "$NAVIDROME_PORT")"
+    [ -n "$TS_HOST" ] && echo "           https://${TS_HOST}:${NAVIDROME_TAILSCALE_PORT:-18443}"
+fi
+if [ "$WITH_AUDIOBOOKSHELF" = true ]; then
+    echo "Audiobookshelf: $(local_url "$HOST_IP" "$AUDIOBOOKSHELF_PORT")"
+    [ -n "$TS_HOST" ] && echo "           https://${TS_HOST}:${AUDIOBOOKSHELF_TAILSCALE_PORT:-20443}"
+fi
 echo ""
 echo -e "${YELLOW}Next Steps (details in MEDIA.md):${NC}"
 echo ""
@@ -596,6 +659,14 @@ fi
 if [ "$WITH_JELLYFIN" = true ]; then
     echo "- Jellyfin: run the setup wizard, add /media/Movies and /media/TV."
     echo "  Dashboard > Playback > Transcoding: keep hardware acceleration at None."
+fi
+if [ "$WITH_NAVIDROME" = true ]; then
+    echo "- Navidrome: open the URL and create the admin account (first visit)."
+    echo "  Phone: any Subsonic app (Symfonium, Amperfy), server = the tailnet URL."
+fi
+if [ "$WITH_AUDIOBOOKSHELF" = true ]; then
+    echo "- Audiobookshelf: create the root user, then add libraries /audiobooks"
+    echo "  (Books) and /podcasts (Podcasts). Phone: the Audiobookshelf app."
 fi
 echo ""
 

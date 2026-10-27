@@ -13,7 +13,9 @@ Orion-Sentinel-HomeCore provides a modular, Docker-based stack for running Home 
 - **ESPHome** - ESP device management
 - **Mealie** - Recipe and meal planning
 - **Immich** - Photo and video backup (Google Photos / iCloud replacement)
-- **Jellyfin** - Movie, TV and music streaming
+- **Jellyfin** - Movie and TV streaming
+- **Navidrome** - Music streaming (Subsonic apps)
+- **Audiobookshelf** - Audiobooks and podcasts
 
 ## Security First
 
@@ -88,6 +90,8 @@ For LAN access, edit `.env` and change `HOST_IP=127.0.0.1` to your machine's IP.
 | Mealie | http://localhost:9000 | mealie |
 | Immich | http://localhost:2283 | immich |
 | Jellyfin | http://localhost:8096 | jellyfin |
+| Navidrome | http://localhost:4533 | navidrome |
+| Audiobookshelf | http://localhost:13378 | audiobookshelf |
 
 **For LAN Access**: Set `HOST_IP` in `.env` to your machine's IP (e.g., `192.168.1.100`). See [SECURITY.md](SECURITY.md) for details.
 
@@ -99,7 +103,7 @@ For LAN access, edit `.env` and change `HOST_IP=127.0.0.1` to your machine's IP.
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues and solutions
 - [SECURITY.md](SECURITY.md) - Security policies and best practices
 - [MIGRATION.md](MIGRATION.md) - Migration guide
-- [MEDIA.md](MEDIA.md) - Immich (photos) and Jellyfin (movies/TV) on a Pi 5
+- [MEDIA.md](MEDIA.md) - Photos, video, music and audiobooks on a Pi 5
 
 ## Directory Structure
 
@@ -111,7 +115,7 @@ Orion-Sentinel-HomeCore/
 │   └── profiles.example      # Profile documentation
 ├── scripts/
 │   ├── bootstrap-homecore.sh # Bootstrap script
-│   ├── deploy-media.sh      # Immich + Jellyfin deploy
+│   ├── deploy-media.sh      # Media stacks deploy
 │   ├── orionctl             # Operator CLI
 │   └── doctor.sh            # Health checks
 ├── stacks/
@@ -122,7 +126,9 @@ Orion-Sentinel-HomeCore/
 │   ├── esphome/             # ESPHome stack
 │   ├── mealie/              # Mealie stack
 │   ├── immich/              # Immich photo backup stack
-│   └── jellyfin/            # Jellyfin media server stack
+│   ├── jellyfin/            # Jellyfin media server stack
+│   ├── navidrome/           # Navidrome music server stack
+│   └── audiobookshelf/      # Audiobookshelf stack
 └── systemd/
     └── homecore.service     # Systemd service file
 ```

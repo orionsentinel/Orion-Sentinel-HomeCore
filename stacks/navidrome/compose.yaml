@@ -1,0 +1,55 @@
+# =============================================================================
+# Navidrome Stack (Music Server)
+# =============================================================================
+# Self-hosted replacement for Spotify / Apple Music, for music you own.
+# Speaks the Subsonic API, so any Subsonic client works (Symfonium, Amperfy,
+# Feishin, substreamer). Reads the same Music folder as Jellyfin, read-only.
+# Audio transcoding is cheap, so the Pi 5's missing video encoder is moot here.
+#
+# Storage:
+#   ${MEDIA_ROOT}/Music           Music library, mounted read-only
+#   ${DATA_ROOT}/navidrome/data   Database (users, playlists, play counts), cache
+#
+# Deploy: ./scripts/deploy-media.sh
+# =============================================================================
+
+services:
+  navidrome:
+    image: deluan/navidrome:${NAVIDROME_VERSION:-0.64.2}
+    container_name: navidrome
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 10s
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      # Anonymous usage statistics sent to the Navidrome project
+      - ND_ENABLEINSIGHTSCOLLECTOR=false
+    volumes:
+      - ${DATA_ROOT}/navidrome/data:/data
+      - ${MEDIA_ROOT:-/srv/orion/media/library}/Music:/music:ro
+    ports:
+      - "${HOST_IP:-127.0.0.1}:${NAVIDROME_PORT:-4533}:4533"
+    networks:
+      - navidrome_lan
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:4533/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        reservations:
+          memory: "128M"
+    profiles:
+      - navidrome
+
+networks:
+  navidrome_lan:
+    name: navidrome_lan

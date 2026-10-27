@@ -177,6 +177,24 @@ if [ -d "${DATA_ROOT}/jellyfin/config" ]; then
     log_success "Jellyfin configuration backed up"
 fi
 
+# Backup Navidrome database (users, playlists, play counts; cache is rebuildable)
+if [ -d "${DATA_ROOT}/navidrome/data" ]; then
+    log_info "Backing up Navidrome data..."
+    tar -czf "${BACKUP_PATH}/navidrome_data.tar.gz" \
+        --exclude="data/cache" \
+        -C "${DATA_ROOT}/navidrome" data
+    log_success "Navidrome data backed up"
+fi
+
+# Backup Audiobookshelf (database with listening progress, covers, its own backups)
+if [ -d "${DATA_ROOT}/audiobookshelf/config" ]; then
+    log_info "Backing up Audiobookshelf..."
+    tar -czf "${BACKUP_PATH}/audiobookshelf.tar.gz" \
+        --exclude="metadata/cache" --exclude="metadata/logs" \
+        -C "${DATA_ROOT}/audiobookshelf" config metadata
+    log_success "Audiobookshelf backed up"
+fi
+
 # Backup .env file (contains configuration)
 if [ -f "${REPO_ROOT}/.env" ]; then
     log_info "Backing up .env configuration..."
@@ -227,6 +245,7 @@ echo "  - ESPHome configurations"
 echo "  - Mealie database and data (if available)"
 echo "  - Immich database (if running - NOT the photo library)"
 echo "  - Jellyfin configuration (if present)"
+echo "  - Navidrome and Audiobookshelf databases (if present)"
 echo "  - .env configuration file"
 echo ""
 echo -e "${YELLOW}To restore from this backup:${NC}"

@@ -64,6 +64,20 @@
 # Required env: MEDIA_ROOT
 # Note: CPU-only transcoding on a Pi 5. Deploy with ./scripts/deploy-media.sh
 
+# navidrome
+# ---------
+# Enables: Navidrome music server (Subsonic API)
+# Port: 4533
+# Use when: You want to stream your own music library to Subsonic apps
+# Required env: MEDIA_ROOT (reads MEDIA_ROOT/Music)
+
+# audiobookshelf
+# --------------
+# Enables: Audiobookshelf audiobook and podcast server
+# Port: 13378
+# Use when: You have audiobooks or want self-hosted podcast downloads
+# Required env: MEDIA_ROOT (reads Audiobooks/, writes Podcasts/)
+
 # ha-hostnet
 # ----------
 # Enables: Home Assistant in host network mode
@@ -86,9 +100,9 @@
 # Everything including Mealie for recipes
 # COMPOSE_PROFILES=mqtt,zigbee,nodered,esphome,mealie
 
-# Media (photos + movies):
+# Media (photos, video, music, audiobooks):
 # Usually started alongside whatever else runs, via ./scripts/deploy-media.sh
-# COMPOSE_PROFILES=immich,jellyfin
+# COMPOSE_PROFILES=immich,jellyfin,navidrome,audiobookshelf
 
 # Discovery Mode:
 # Enable host networking for device discovery
